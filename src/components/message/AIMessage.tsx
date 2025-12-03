@@ -108,6 +108,20 @@ export const AIMessage: React.FC<AIMessageProps> = ({
   const isCodexMessage = (message as any).engine === 'codex';
   const isGeminiMessage = (message as any).geminiMetadata?.provider === 'gemini' || (message as any).engine === 'gemini';
 
+  // 🐛 DEBUG: Log when rendering Gemini message with tools
+  if (isGeminiMessage && process.env.NODE_ENV === 'development') {
+    const content = message.message?.content;
+    const toolUseItems = Array.isArray(content) ? content.filter((c: any) => c.type === 'tool_use') : [];
+    if (toolUseItems.length > 0) {
+      console.log('[AIMessage] Rendering Gemini message:', {
+        hasTools,
+        toolCount: toolUseItems.length,
+        tools: toolUseItems.map((t: any) => ({ name: t.name, id: t.id })),
+        hasText: !!text
+      });
+    }
+  }
+
   // 打字机效果只在流式输出时启用
   // isStreaming=true 表示：当前是最后一条消息 && 会话正在进行中
   const enableTypewriter = isStreaming;

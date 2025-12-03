@@ -666,6 +666,14 @@ export function usePromptExecution(config: UsePromptExecutionConfig): UsePromptE
                             merged = true;
                           }
                         } else {
+                          // 🐛 DEBUG: Log when appending tool_use
+                          if (newItem.type === 'tool_use') {
+                            console.log('[Gemini Delta] Appending tool_use:', {
+                              toolName: newItem.name,
+                              toolId: newItem.id,
+                              input: newItem.input
+                            });
+                          }
                           // Append non-text items (tool_use, thinking, etc.)
                           updatedContent.push(newItem);
                           merged = true;
@@ -673,6 +681,15 @@ export function usePromptExecution(config: UsePromptExecutionConfig): UsePromptE
                       }
 
                       if (merged) {
+                        // 🐛 DEBUG: Log final merged content structure
+                        const toolUseCount = updatedContent.filter((c: any) => c.type === 'tool_use').length;
+                        if (toolUseCount > 0) {
+                          console.log('[Gemini Delta] Merged message content:', {
+                            toolUseCount,
+                            contentTypes: updatedContent.map((c: any) => c.type)
+                          });
+                        }
+
                         const updatedMsg = {
                           ...lastMsg,
                           message: {
