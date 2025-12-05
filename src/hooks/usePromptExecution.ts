@@ -313,7 +313,7 @@ export function usePromptExecution(config: UsePromptExecutionConfig): UsePromptE
           };
 
           // Helper function to process Codex output
-          const processCodexOutput = (payload: string) => {
+          const processCodexOutput = async (payload: string) => {
             if (!isMountedRef.current) return;
 
             // 🔧 FIX: Deduplicate messages
@@ -323,6 +323,18 @@ export function usePromptExecution(config: UsePromptExecutionConfig): UsePromptE
               return;
             }
             processedCodexMessages.add(messageId);
+
+            // 🔧 CRITICAL FIX: Parse JSONL to detect turn.completed event
+            let isTurnCompleted = false;
+            try {
+              const event = JSON.parse(payload);
+              if (event.type === 'turn.completed') {
+                isTurnCompleted = true;
+                console.log('[usePromptExecution] Detected turn.completed event, will auto-complete session');
+              }
+            } catch (e) {
+              // Ignore parse errors
+            }
 
             // 🔧 FIX: 使用会话级别的转换器实例
             const message = sessionCodexConverter.convertEvent(payload);
@@ -371,6 +383,16 @@ export function usePromptExecution(config: UsePromptExecutionConfig): UsePromptE
                   };
                 }
               }
+            }
+
+            // 🔧 CRITICAL FIX: Auto-complete session when turn.completed is received
+            // Don't wait for codex-complete event from backend, as it may be delayed or not sent
+            if (isTurnCompleted) {
+              console.log('[usePromptExecution] Auto-completing session after turn.completed');
+              // Use setTimeout to ensure message state is updated first
+              setTimeout(() => {
+                processCodexComplete();
+              }, 100);
             }
           };
 
@@ -665,16 +687,34 @@ export function usePromptExecution(config: UsePromptExecutionConfig): UsePromptE
                             };
                             merged = true;
                           }
-                        } else {
-                          // 🐛 DEBUG: Log when appending tool_use
-                          if (newItem.type === 'tool_use') {
-                            console.log('[Gemini Delta] Appending tool_use:', {
-                              toolName: newItem.name,
-                              toolId: newItem.id,
-                              input: newItem.input
-                            });
+                        } else if (newItem.type === 'tool_use') {
+                          // 🔧 FIX: Handle tool_use delta - merge with existing tool_use if same ID
+                          // Gemini streaming often sends tool_use in chunks or duplicates
+                          const lastContentIdx = updatedContent.length - 1;
+                          const lastContentItem = updatedContent[lastContentIdx];
+                          
+                          // Check if we can merge with the last item (same type and ID)
+                          if (lastContentItem && lastContentItem.type === 'tool_use' && 
+                              (lastContentItem.id === newItem.id || (!lastContentItem.id && !newItem.id))) {
+                            
+                            // Merge input (assuming it's accumulating properties or complete update)
+                            // For safety, we merge objects
+                            const mergedInput = { ...(lastContentItem.input || {}), ...(newItem.input || {}) };
+                            
+                            updatedContent[lastContentIdx] = {
+                              ...lastContentItem,
+                              ...newItem, // Update other fields like name
+                              input: mergedInput
+                            };
+                            // console.log('[Gemini Delta] Merged tool_use:', newItem.id);
+                          } else {
+                            // New tool call
+                            updatedContent.push(newItem);
+                            // console.log('[Gemini Delta] Appended new tool_use:', newItem.id);
                           }
-                          // Append non-text items (tool_use, thinking, etc.)
+                          merged = true;
+                        } else {
+                          // Append non-text items (thinking, etc.)
                           updatedContent.push(newItem);
                           merged = true;
                         }
