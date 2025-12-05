@@ -26,6 +26,7 @@ import { useMessageTranslation } from '@/hooks/useMessageTranslation';
 import { useSessionLifecycle } from '@/hooks/useSessionLifecycle';
 import { usePromptExecution } from '@/hooks/usePromptExecution';
 import { MessagesProvider, useMessagesContext } from '@/contexts/MessagesContext';
+import { SessionProvider } from '@/contexts/SessionContext';
 import { PlanModeProvider, usePlanMode } from '@/contexts/PlanModeContext';
 import { PlanApprovalDialog } from '@/components/dialogs/PlanApprovalDialog';
 import { PlanModeStatusBar } from '@/components/widgets/system/PlanModeStatusBar';
@@ -894,19 +895,26 @@ const ClaudeCodeSessionInner: React.FC<ClaudeCodeSessionProps> = ({
     };
   }, []); // Empty deps - only run on mount/unmount
 
+  // ✅ 架构优化: 使用 SessionProvider 提供会话上下文，避免 Props Drilling
   const messagesList = (
-    <SessionMessages
-      ref={sessionMessagesRef}
-      messageGroups={messageGroups}
-      isLoading={isLoading}
-      claudeSettings={claudeSettings}
-      effectiveSession={effectiveSession}
+    <SessionProvider
+      session={effectiveSession}
+      projectPath={projectPath}
+      sessionId={effectiveSession?.id || null}
+      projectId={effectiveSession?.project_id || null}
+      settings={claudeSettings}
+      onLinkDetected={handleLinkDetected}
+      onRevert={handleRevert}
       getPromptIndexForMessage={getPromptIndexForMessage}
-      handleLinkDetected={handleLinkDetected}
-      handleRevert={handleRevert}
-      error={error}
-      parentRef={parentRef}
-    />
+    >
+      <SessionMessages
+        ref={sessionMessagesRef}
+        messageGroups={messageGroups}
+        isLoading={isLoading}
+        error={error}
+        parentRef={parentRef}
+      />
+    </SessionProvider>
   );
 
   // Show project path input only when:

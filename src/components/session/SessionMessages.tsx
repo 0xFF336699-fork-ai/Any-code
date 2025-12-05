@@ -1,22 +1,93 @@
-import React, { useImperativeHandle, forwardRef } from "react";
+import React, { useImperativeHandle, forwardRef, useEffect, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import { StreamMessageV2 } from "@/components/message";
 import type { MessageGroup } from "@/lib/subagentGrouping";
-import type { RewindMode } from "@/lib/api";
+import { useSession } from "@/contexts/SessionContext";
+
+/**
+ * ✅ MeasurableItem: 自动监听高度变化的虚拟列表项
+ * 
+ * 使用 ResizeObserver 并在内容变化时自动通知虚拟列表重新测量。
+ * 仅对正在流式输出的消息进行防抖，历史消息立即更新以防止滚动抖动。
+ */
+const MeasurableItem = ({ virtualItem, measureElement, isStreaming, children, ...props }: any) => {
+  const elRef = useRef<HTMLDivElement>(null);
+  const measureRef = useRef(measureElement);
+  
+  // 保持 measureElement 引用最新
+  useEffect(() => {
+    measureRef.current = measureElement;
+  }, [measureElement]);
+
+  useEffect(() => {
+    const el = elRef.current;
+    if (!el) return;
+
+    // 初始测量 - 立即执行确保占位准确
+    measureRef.current(el);
+
+    let frameId: number;
+
+    // 创建观察者
+    const observer = new ResizeObserver(() => {
+      if (isStreaming) {
+        // ✅ 流式消息：使用防抖，避免每帧重绘导致的性能问题
+        cancelAnimationFrame(frameId);
+        frameId = requestAnimationFrame(() => {
+          if (elRef.current) {
+            measureRef.current(elRef.current);
+          }
+        });
+      } else {
+        // ✅ 历史消息：立即响应（通过 rAF 避免 Loop 错误），确保向上滚动时高度修正及时，减少抖动
+        requestAnimationFrame(() => {
+          if (elRef.current) {
+            measureRef.current(elRef.current);
+          }
+        });
+      }
+    });
+
+    observer.observe(el);
+
+    return () => {
+      observer.disconnect();
+      cancelAnimationFrame(frameId);
+    };
+  }, [isStreaming]); // 添加 isStreaming 依赖
+
+  return (
+    <motion.div
+      {...props}
+      ref={elRef}
+      data-index={virtualItem.index}
+    >
+      {children}
+    </motion.div>
+  );
+};
 
 export interface SessionMessagesRef {
   scrollToPrompt: (promptIndex: number) => void;
 }
 
+/**
+ * ✅ 架构优化: 简化 Props 接口，移除可从 SessionContext 获取的数据
+ *
+ * 优化前: 10+ 个 props，包含配置、回调和会话数据
+ * 优化后: 只保留核心渲染相关的 props
+ *
+ * 从 SessionContext 获取:
+ * - claudeSettings → settings
+ * - effectiveSession → session, sessionId, projectId, projectPath
+ * - handleLinkDetected → onLinkDetected
+ * - handleRevert → onRevert
+ * - getPromptIndexForMessage → getPromptIndexForMessage
+ */
 interface SessionMessagesProps {
   messageGroups: MessageGroup[];
   isLoading: boolean;
-  claudeSettings: { showSystemInitialization?: boolean; hideWarmupMessages?: boolean };
-  effectiveSession: any;
-  getPromptIndexForMessage: (index: number) => number;
-  handleLinkDetected: (url: string) => void;
-  handleRevert: (promptIndex: number, mode: RewindMode) => void;
   error?: string | null;
   parentRef: React.RefObject<HTMLDivElement>;
 }
@@ -24,14 +95,11 @@ interface SessionMessagesProps {
 export const SessionMessages = forwardRef<SessionMessagesRef, SessionMessagesProps>(({
   messageGroups,
   isLoading,
-  claudeSettings,
-  effectiveSession,
-  getPromptIndexForMessage,
-  handleLinkDetected,
-  handleRevert,
   error,
   parentRef
 }, ref) => {
+  // ✅ 从 SessionContext 获取配置和回调，避免 Props Drilling
+  const { settings, session, sessionId, projectId, projectPath, onLinkDetected, onRevert, getPromptIndexForMessage } = useSession();
   /**
    * ✅ OPTIMIZED: Virtual list configuration for improved performance
    */
@@ -63,7 +131,7 @@ export const SessionMessages = forwardRef<SessionMessagesRef, SessionMessagesPro
       }
       return 200; // Default fallback
     },
-    overscan: 5, // ✅ OPTIMIZED: Reduced from 8 to 5 for better performance
+    overscan: 12, // ✅ OPTIMIZED: Increased to 12 to prevent blank areas during fast scrolling
     measureElement: (element) => {
       // Ensure element is fully rendered before measurement
       return element?.getBoundingClientRect().height ?? 200;
@@ -146,15 +214,18 @@ export const SessionMessages = forwardRef<SessionMessagesRef, SessionMessagesPro
 
             const message = messageGroup.type === 'normal' ? messageGroup.message : null;
             const originalIndex = messageGroup.type === 'normal' ? messageGroup.index : undefined;
-            const promptIndex = message && message.type === 'user' && originalIndex !== undefined
+            const promptIndex = message && message.type === 'user' && originalIndex !== undefined && getPromptIndexForMessage
               ? getPromptIndexForMessage(originalIndex)
               : undefined;
 
+            const isStreaming = virtualItem.index === messageGroups.length - 1 && isLoading;
+
             return (
-              <motion.div
+              <MeasurableItem
                 key={virtualItem.key}
-                data-index={virtualItem.index}
-                ref={(el) => el && rowVirtualizer.measureElement(el)}
+                virtualItem={virtualItem}
+                measureElement={rowVirtualizer.measureElement}
+                isStreaming={isStreaming}
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
                 exit={{ opacity: 0, y: -20 }}
@@ -164,18 +235,19 @@ export const SessionMessages = forwardRef<SessionMessagesRef, SessionMessagesPro
                   top: virtualItem.start,
                 }}
               >
+                {/* ✅ 架构优化: StreamMessageV2 现在从 SessionContext 获取数据 */}
                 <StreamMessageV2
                   messageGroup={messageGroup}
-                  onLinkDetected={handleLinkDetected}
-                  claudeSettings={claudeSettings}
-                  isStreaming={virtualItem.index === messageGroups.length - 1 && isLoading}
+                  onLinkDetected={onLinkDetected}
+                  claudeSettings={settings}
+                  isStreaming={isStreaming}
                   promptIndex={promptIndex}
-                  sessionId={effectiveSession?.id}
-                  projectId={effectiveSession?.project_id}
-                  projectPath={effectiveSession?.project_path}
-                  onRevert={handleRevert}
+                  sessionId={sessionId ?? undefined}
+                  projectId={projectId ?? undefined}
+                  projectPath={projectPath}
+                  onRevert={onRevert}
                 />
-              </motion.div>
+              </MeasurableItem>
             );
           })}
         </AnimatePresence>
