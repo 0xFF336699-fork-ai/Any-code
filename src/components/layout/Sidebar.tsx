@@ -73,13 +73,13 @@ export const Sidebar: React.FC<SidebarProps> = ({
 
   const mainNavItems: NavItem[] = [
     { view: 'projects', icon: FolderOpen, label: t('common.ccProjectsTitle') },
-    { view: 'claude-tab-manager', icon: Terminal, label: '会话管理' },
-    { view: 'editor', icon: FileText, label: 'Claude 提示词' },
-    { view: 'codex-editor', icon: FileCode, label: 'Codex 提示词' },
-    { view: 'gemini-editor', icon: Sparkles, label: 'Gemini 提示词' },
-    { view: 'usage-dashboard', icon: BarChart2, label: '使用统计' },
-    { view: 'mcp', icon: Layers, label: 'MCP 工具' },
-    { view: 'claude-extensions', icon: Package, label: '扩展' },
+    { view: 'claude-tab-manager', icon: Terminal, label: t('sidebar.sessionManagement') },
+    { view: 'editor', icon: FileText, label: t('sidebar.claudePrompts') },
+    { view: 'codex-editor', icon: FileCode, label: t('sidebar.codexPrompts') },
+    { view: 'gemini-editor', icon: Sparkles, label: t('sidebar.geminiPrompts') },
+    { view: 'usage-dashboard', icon: BarChart2, label: t('sidebar.usageStats') },
+    { view: 'mcp', icon: Layers, label: t('sidebar.mcpTools') },
+    { view: 'claude-extensions', icon: Package, label: t('sidebar.extensions') },
   ];
 
   const bottomNavItems: NavItem[] = [
@@ -183,7 +183,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
               </TooltipTrigger>
               {!isExpanded && (
                 <TooltipContent side="right">
-                  <p>主题切换</p>
+                  <p>{t('sidebar.themeToggle')}</p>
                 </TooltipContent>
               )}
             </Tooltip>
@@ -198,14 +198,14 @@ export const Sidebar: React.FC<SidebarProps> = ({
                     size="icon"
                     onClick={onAboutClick}
                     className="w-8 h-8 text-muted-foreground hover:text-foreground"
-                    aria-label="关于"
+                    aria-label={t('sidebar.about')}
                   >
                     <HelpCircle className="w-4 h-4" />
                   </Button>
                 </TooltipTrigger>
                 {!isExpanded && (
                   <TooltipContent side="right">
-                    <p>关于</p>
+                    <p>{t('sidebar.about')}</p>
                   </TooltipContent>
                 )}
               </Tooltip>
@@ -230,7 +230,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
                   size="icon"
                   onClick={() => setIsExpanded(!isExpanded)}
                   className="w-8 h-8 text-muted-foreground hover:text-foreground"
-                  aria-label={isExpanded ? "收起侧边栏" : "展开侧边栏"}
+                  aria-label={isExpanded ? t('sidebar.collapseSidebar') : t('sidebar.expandSidebar')}
                 >
                   {isExpanded ? (
                     <ChevronLeft className="w-4 h-4" />
@@ -240,7 +240,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
                 </Button>
               </TooltipTrigger>
               <TooltipContent side="right">
-                <p>{isExpanded ? "收起侧边栏" : "展开侧边栏"}</p>
+                <p>{isExpanded ? t('sidebar.collapseSidebar') : t('sidebar.expandSidebar')}</p>
               </TooltipContent>
             </Tooltip>
           </TooltipProvider>

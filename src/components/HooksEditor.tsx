@@ -51,6 +51,7 @@ import {
 import { cn } from '@/lib/utils';
 import { HooksManager } from '@/lib/hooksManager';
 import { api } from '@/lib/api';
+import { useTranslation } from '@/hooks/useTranslation';
 import {
   HooksConfiguration,
   HookEvent,
@@ -93,53 +94,53 @@ type EditableHooksState = {
   SessionEnd: EditableHookMatcher[];
 };
 
-const EVENT_INFO: Record<HookEvent, { label: string; description: string; icon: React.ReactNode }> = {
+const getEventInfo = (t: (key: string) => string): Record<HookEvent, { label: string; description: string; icon: React.ReactNode }> => ({
   PreToolUse: {
-    label: '工具使用前',
-    description: '在工具调用前运行，可以阻止并提供反馈',
+    label: t('hooks.events.preToolUse'),
+    description: t('hooks.events.preToolUseDesc'),
     icon: <Shield className="h-4 w-4" />
   },
   PostToolUse: {
-    label: '工具使用后',
-    description: '在工具成功完成后运行',
+    label: t('hooks.events.postToolUse'),
+    description: t('hooks.events.postToolUseDesc'),
     icon: <PlayCircle className="h-4 w-4" />
   },
   Notification: {
-    label: '通知',
-    description: '当 Claude 需要注意时自定义通知',
+    label: t('hooks.events.notification'),
+    description: t('hooks.events.notificationDesc'),
     icon: <Zap className="h-4 w-4" />
   },
   UserPromptSubmit: {
-    label: '用户提示提交',
-    description: '当用户提交提示时运行，可以添加上下文或验证',
+    label: t('hooks.events.userPromptSubmit'),
+    description: t('hooks.events.userPromptSubmitDesc'),
     icon: <Terminal className="h-4 w-4" />
   },
   Stop: {
-    label: '停止',
-    description: '当 Claude 完成响应时运行',
+    label: t('hooks.events.stop'),
+    description: t('hooks.events.stopDesc'),
     icon: <Code2 className="h-4 w-4" />
   },
   SubagentStop: {
-    label: '子智能体停止',
-    description: '当 Claude 子智能体（任务）完成时运行',
+    label: t('hooks.events.subagentStop'),
+    description: t('hooks.events.subagentStopDesc'),
     icon: <Terminal className="h-4 w-4" />
   },
   PreCompact: {
-    label: '压缩前',
-    description: '在上下文压缩前运行',
+    label: t('hooks.events.preCompact'),
+    description: t('hooks.events.preCompactDesc'),
     icon: <Shield className="h-4 w-4" />
   },
   SessionStart: {
-    label: '会话开始',
-    description: '当会话开始时运行',
+    label: t('hooks.events.sessionStart'),
+    description: t('hooks.events.sessionStartDesc'),
     icon: <PlayCircle className="h-4 w-4" />
   },
   SessionEnd: {
-    label: '会话结束',
-    description: '当会话结束时运行',
+    label: t('hooks.events.sessionEnd'),
+    description: t('hooks.events.sessionEndDesc'),
     icon: <Code2 className="h-4 w-4" />
   }
-};
+});
 
 export const HooksEditor: React.FC<HooksEditorProps> = ({
   projectPath,
@@ -149,6 +150,9 @@ export const HooksEditor: React.FC<HooksEditorProps> = ({
   onChange,
   hideActions = false
 }) => {
+  const { t } = useTranslation();
+  const EVENT_INFO = React.useMemo(() => getEventInfo(t), [t]);
+
   const [selectedEvent, setSelectedEvent] = useState<HookEvent>('PreToolUse');
   const [showTemplateDialog, setShowTemplateDialog] = useState(false);
   const [validationErrors, setValidationErrors] = useState<string[]>([]);
@@ -636,10 +640,10 @@ export const HooksEditor: React.FC<HooksEditorProps> = ({
           {/* Header */}
           <div className="space-y-2">
             <div className="flex items-center justify-between">
-              <h3 className="text-lg font-semibold">钩子配置</h3>
+              <h3 className="text-lg font-semibold">{t('hooks.configuration')}</h3>
               <div className="flex items-center gap-2">
                 <Badge variant={scope === 'project' ? 'secondary' : scope === 'local' ? 'outline' : 'default'}>
-                  {scope === 'project' ? '项目' : scope === 'local' ? '本地' : '用户'} 范围
+                  {scope === 'project' ? t('hooks.scopeProject') : scope === 'local' ? t('hooks.scopeLocal') : t('hooks.scopeUser')} {t('hooks.scope')}
                 </Badge>
                 {!readOnly && (
                   <>
@@ -649,7 +653,7 @@ export const HooksEditor: React.FC<HooksEditorProps> = ({
                       onClick={() => setShowTemplateDialog(true)}
                     >
                       <FileText className="h-4 w-4 mr-2" />
-                      模板
+                      {t('hooks.templates')}
                     </Button>
                     {!hideActions && (
                       <Button
@@ -735,18 +739,18 @@ export const HooksEditor: React.FC<HooksEditorProps> = ({
 
                   {matchers.length === 0 ? (
                     <Card className="p-8 text-center">
-                      <p className="text-muted-foreground mb-4">此事件未配置钩子</p>
+                      <p className="text-muted-foreground mb-4">{t('hooks.noHooksConfigured')}</p>
                       {!readOnly && (
                         <Button onClick={() => addMatcher(event)}>
                           <Plus className="h-4 w-4 mr-2" />
-                          添加钩子
+                          {t('hooks.addHook')}
                         </Button>
                       )}
                     </Card>
                   ) : (
                     <div className="space-y-4">
                       {matchers.map(matcher => renderMatcher(event, matcher))}
-                      
+
                       {!readOnly && (
                         <Button
                           variant="outline"
@@ -754,7 +758,7 @@ export const HooksEditor: React.FC<HooksEditorProps> = ({
                           className="w-full"
                         >
                           <Plus className="h-4 w-4 mr-2" />
-                          添加另一个钩子
+                          {t('hooks.addAnotherHook')}
                         </Button>
                       )}
                     </div>
@@ -789,7 +793,7 @@ export const HooksEditor: React.FC<HooksEditorProps> = ({
                       <p className="text-sm text-muted-foreground">{template.description}</p>
                       {(template.event === 'PreToolUse' || template.event === 'PostToolUse') && template.matcher && (
                         <p className="text-xs font-mono bg-muted px-2 py-1 rounded inline-block">
-                          匹配器: {template.matcher}
+                          {t('hooks.matcher')}: {template.matcher}
                         </p>
                       )}
                     </div>
