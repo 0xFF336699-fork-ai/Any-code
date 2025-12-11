@@ -62,25 +62,11 @@ export const MCPManager: React.FC<MCPManagerProps> = ({
       }
       setError(null);
 
-      // 使用新的 API 获取服务器
-      const serversMap = await api.mcpGetAllServers();
+      // 使用统一视图 API 获取所有应用的服务器（包含真实的 apps 状态）
+      const serversMap = await api.mcpGetUnifiedServers();
 
-      // 转换为数组格式（包含 ID 和应用状态）
-      const serversList: McpServer[] = Object.entries(serversMap).map(([id, spec]) => ({
-        id,
-        name: id, // 使用 ID 作为名称
-        server: spec,
-        apps: {
-          claude: true,  // 默认从 Claude 加载，所以标记为 true
-          codex: false,
-          gemini: false,
-        },
-        // 可选字段
-        description: undefined,
-        homepage: undefined,
-        docs: undefined,
-        tags: [],
-      }));
+      // 转换为数组格式
+      const serversList: McpServer[] = Object.values(serversMap);
 
       setServers(serversList);
       setCacheTimestamp(now);
@@ -156,7 +142,12 @@ export const MCPManager: React.FC<MCPManagerProps> = ({
                 {t('mcp.servers')}
               </h2>
               <p className="text-xs text-muted-foreground">
-                {t('mcp.manageServers')}
+                {(() => {
+                  const claudeCount = servers.filter(s => s.apps.claude).length;
+                  const codexCount = servers.filter(s => s.apps.codex).length;
+                  const geminiCount = servers.filter(s => s.apps.gemini).length;
+                  return `${servers.length} 个服务器 · Claude: ${claudeCount} · Codex: ${codexCount} · Gemini: ${geminiCount}`;
+                })()}
               </p>
             </div>
           </div>

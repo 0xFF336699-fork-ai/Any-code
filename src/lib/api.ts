@@ -1382,13 +1382,28 @@ export const api = {
   },
 
   /**
-   * 获取所有 MCP 服务器
+   * 获取所有 MCP 服务器（从 Claude 配置）
+   * @deprecated 使用 mcpGetUnifiedServers 获取真实的多应用状态
    */
   async mcpGetAllServers(): Promise<Record<string, MCPServerSpec>> {
     try {
       return await invoke<Record<string, MCPServerSpec>>("mcp_get_all_servers");
     } catch (error) {
       console.error("Failed to get all MCP servers:", error);
+      throw error;
+    }
+  },
+
+  /**
+   * 获取所有应用的 MCP 服务器统一视图（推荐）
+   *
+   * 返回合并后的服务器列表，每个服务器的 apps 字段显示真实的启用状态
+   */
+  async mcpGetUnifiedServers(): Promise<Record<string, McpServer>> {
+    try {
+      return await invoke<Record<string, McpServer>>("mcp_get_unified_servers");
+    } catch (error) {
+      console.error("Failed to get unified MCP servers:", error);
       throw error;
     }
   },

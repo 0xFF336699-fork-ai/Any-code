@@ -40,6 +40,7 @@ use commands::mcp::{
     // 多应用 MCP 支持（新增）
     mcp_get_claude_status, mcp_upsert_server, mcp_delete_server, mcp_toggle_app,
     mcp_import_from_app, mcp_validate_command, mcp_read_claude_config, mcp_get_all_servers,
+    mcp_get_unified_servers,
 };
 use commands::storage::{init_database, AgentDb};
 
@@ -352,6 +353,7 @@ fn main() {
             mcp_validate_command,
             mcp_read_claude_config,
             mcp_get_all_servers,
+            mcp_get_unified_servers,
             // Storage Management
             storage_list_tables,
             storage_read_table,

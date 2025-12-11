@@ -5,7 +5,6 @@ import {
   Globe,
   Terminal,
   Trash2,
-  Play,
   Loader2,
   RefreshCw,
   ChevronDown,
@@ -13,7 +12,7 @@ import {
   Copy
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
+import { Switch } from "@/components/ui/switch";
 import { api, type McpServer } from "@/lib/api";
 import { copyTextToClipboard } from "@/lib/clipboard";
 import { MCPServerListSkeleton } from "@/components/skeletons/MCPServerListSkeleton";
@@ -48,7 +47,6 @@ export const MCPServerList: React.FC<MCPServerListProps> = ({
   onRefresh,
 }) => {
   const [removingServer, setRemovingServer] = useState<string | null>(null);
-  const [testingServer, setTestingServer] = useState<string | null>(null);
   const [expandedServers, setExpandedServers] = useState<Set<string>>(new Set());
   const [copiedServer, setCopiedServer] = useState<string | null>(null);
 
@@ -93,22 +91,6 @@ export const MCPServerList: React.FC<MCPServerListProps> = ({
       console.error("Failed to remove server:", error);
     } finally {
       setRemovingServer(null);
-    }
-  };
-
-  /**
-   * Tests connection to a server
-   */
-  const handleTestConnection = async (name: string) => {
-    try {
-      setTestingServer(name);
-      const result = await api.mcpTestConnection(name);
-      // TODO: Show result in a toast or modal
-      console.log("Test result:", result);
-    } catch (error) {
-      console.error("Failed to test connection:", error);
-    } finally {
-      setTestingServer(null);
     }
   };
 
@@ -159,113 +141,120 @@ export const MCPServerList: React.FC<MCPServerListProps> = ({
         exit={{ opacity: 0, x: -20 }}
         className="group p-4 rounded-lg border border-border bg-card hover:bg-accent/5 hover:border-primary/20 transition-all overflow-hidden"
       >
-        <div className="space-y-2">
-          <div className="flex items-start justify-between gap-4">
-            <div className="flex-1 min-w-0 space-y-1">
-              <div className="flex items-center gap-2">
-                <div className="p-1.5 bg-primary/10 rounded">
-                  {getTransportIcon(transport)}
-                </div>
-                <h4 className="font-medium truncate">{server.name}</h4>
-
-                {/* 应用状态 badges（新增） */}
-                <div className="flex gap-1 ml-auto">
-                  {server.apps.claude && (
-                    <Badge
-                      variant="outline"
-                      className="gap-1 flex-shrink-0 border-blue-500/50 text-blue-600 bg-blue-500/10 cursor-pointer hover:bg-blue-500/20"
-                      onClick={() => handleToggleApp(server, "claude", false)}
-                      title="点击禁用 Claude"
-                    >
-                      Claude ✓
-                    </Badge>
-                  )}
-                  {server.apps.codex && (
-                    <Badge
-                      variant="outline"
-                      className="gap-1 flex-shrink-0 border-purple-500/50 text-purple-600 bg-purple-500/10 cursor-pointer hover:bg-purple-500/20"
-                      onClick={() => handleToggleApp(server, "codex", false)}
-                      title="点击禁用 Codex"
-                    >
-                      Codex ✓
-                    </Badge>
-                  )}
-                  {server.apps.gemini && (
-                    <Badge
-                      variant="outline"
-                      className="gap-1 flex-shrink-0 border-green-500/50 text-green-600 bg-green-500/10 cursor-pointer hover:bg-green-500/20"
-                      onClick={() => handleToggleApp(server, "gemini", false)}
-                      title="点击禁用 Gemini"
-                    >
-                      Gemini ✓
-                    </Badge>
-                  )}
-                </div>
+        {/* 主行：服务器信息 + 应用开关 + 操作按钮 */}
+        <div className="flex items-center gap-4">
+          {/* 左侧：服务器信息 */}
+          <div className="flex-1 min-w-0">
+            <div className="flex items-center gap-2 mb-1">
+              <div className="p-1.5 bg-primary/10 rounded">
+                {getTransportIcon(transport)}
               </div>
-              
-              {command && !isExpanded && (
-                <div className="flex items-center gap-2">
-                  <p className="text-xs text-muted-foreground font-mono truncate pl-9 flex-1" title={command}>
-                    {command}
-                  </p>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => toggleExpanded(server.id)}
-                    className="h-6 px-2 text-xs hover:bg-primary/10"
-                  >
-                    <ChevronDown className="h-3 w-3 mr-1" />
-                    Show full
-                  </Button>
-                </div>
-              )}
-
-              {transport === "sse" && url && !isExpanded && (
-                <div className="overflow-hidden">
-                  <p className="text-xs text-muted-foreground font-mono truncate pl-9" title={url}>
-                    {url}
-                  </p>
-                </div>
-              )}
-
-              {server.server.env && Object.keys(server.server.env).length > 0 && !isExpanded && (
-                <div className="flex items-center gap-1 text-xs text-muted-foreground pl-9">
-                  <span>Environment variables: {Object.keys(server.server.env).length}</span>
-                </div>
-              )}
+              <h4 className="font-medium truncate">{server.name}</h4>
             </div>
-            
-            <div className="flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0">
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => handleTestConnection(server.id)}
-                disabled={testingServer === server.id}
-                className="hover:bg-green-500/10 hover:text-green-600"
-                title="Test Connection"
+            {server.description && (
+              <p className="text-sm text-muted-foreground line-clamp-2 pl-9">
+                {server.description}
+              </p>
+            )}
+          </div>
+
+          {/* 中间：应用 Switch 开关 */}
+          <div className="flex flex-col gap-2 flex-shrink-0 min-w-[140px]">
+            <div className="flex items-center justify-between gap-3">
+              <label
+                htmlFor={`${server.id}-claude`}
+                className="text-sm font-medium cursor-pointer"
               >
-                {testingServer === server.id ? (
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                ) : (
-                  <Play className="h-4 w-4" />
-                )}
-              </Button>
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => handleRemoveServer(server)}
-                disabled={removingServer === server.id}
-                className="hover:bg-destructive/10 hover:text-destructive"
-                title="Delete Server"
+                Claude
+              </label>
+              <Switch
+                id={`${server.id}-claude`}
+                checked={server.apps.claude}
+                onCheckedChange={(checked) => handleToggleApp(server, "claude", checked)}
+              />
+            </div>
+
+            <div className="flex items-center justify-between gap-3">
+              <label
+                htmlFor={`${server.id}-codex`}
+                className="text-sm font-medium cursor-pointer"
               >
-                {removingServer === server.id ? (
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                ) : (
-                  <Trash2 className="h-4 w-4" />
-                )}
-              </Button>
+                Codex
+              </label>
+              <Switch
+                id={`${server.id}-codex`}
+                checked={server.apps.codex}
+                onCheckedChange={(checked) => handleToggleApp(server, "codex", checked)}
+              />
+            </div>
+
+            <div className="flex items-center justify-between gap-3">
+              <label
+                htmlFor={`${server.id}-gemini`}
+                className="text-sm font-medium cursor-pointer"
+              >
+                Gemini
+              </label>
+              <Switch
+                id={`${server.id}-gemini`}
+                checked={server.apps.gemini}
+                onCheckedChange={(checked) => handleToggleApp(server, "gemini", checked)}
+              />
             </div>
           </div>
+
+          {/* 右侧：操作按钮 */}
+          <div className="flex items-center gap-2 flex-shrink-0">
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => handleRemoveServer(server)}
+              disabled={removingServer === server.id}
+              className="hover:bg-destructive/10 hover:text-destructive"
+              title="删除服务器"
+            >
+              {removingServer === server.id ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                <Trash2 className="h-4 w-4" />
+              )}
+            </Button>
+          </div>
+        </div>
+
+        {/* 简要信息行 */}
+        {command && !isExpanded && (
+          <div className="flex items-center gap-2 mt-2">
+            <p className="text-xs text-muted-foreground font-mono truncate pl-9 flex-1" title={command}>
+              {command}
+            </p>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => toggleExpanded(server.id)}
+              className="h-6 px-2 text-xs hover:bg-primary/10"
+            >
+              <ChevronDown className="h-3 w-3 mr-1" />
+              详情
+            </Button>
+          </div>
+        )}
+
+        {transport === "sse" && url && !isExpanded && (
+          <div className="mt-2">
+            <p className="text-xs text-muted-foreground font-mono truncate pl-9" title={url}>
+              {url}
+            </p>
+          </div>
+        )}
+
+        {server.server.env && Object.keys(server.server.env).length > 0 && !isExpanded && (
+          <div className="mt-2">
+            <p className="text-xs text-muted-foreground pl-9">
+              环境变量: {Object.keys(server.server.env).length} 个
+            </p>
+          </div>
+        )}
           
           {/* Expanded Details */}
           {isExpanded && (
@@ -346,7 +335,6 @@ export const MCPServerList: React.FC<MCPServerListProps> = ({
               )}
             </motion.div>
           )}
-        </div>
       </motion.div>
     );
   };

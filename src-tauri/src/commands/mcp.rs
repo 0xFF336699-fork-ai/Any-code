@@ -917,7 +917,17 @@ pub async fn mcp_read_claude_config() -> Result<Option<String>, String> {
 }
 
 /// 获取所有 MCP 服务器（从 Claude 配置）
+/// @deprecated 使用 mcp_get_unified_servers 获取真实的多应用状态
 #[tauri::command]
 pub async fn mcp_get_all_servers() -> Result<std::collections::HashMap<String, serde_json::Value>, String> {
     crate::claude_mcp::read_mcp_servers_map()
+}
+
+/// 获取所有应用的 MCP 服务器统一视图
+///
+/// 返回合并后的服务器列表，每个服务器的 apps 字段标记了它在哪些应用中真正启用
+#[tauri::command]
+pub async fn mcp_get_unified_servers() -> Result<std::collections::HashMap<String, McpServer>, String> {
+    info!("Getting unified MCP servers from all apps");
+    crate::mcp::get_unified_servers()
 }

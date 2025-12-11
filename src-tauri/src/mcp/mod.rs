@@ -23,7 +23,7 @@ mod validation;
 
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 
 // 重新导出公共 API
 pub use claude::{
@@ -193,4 +193,59 @@ pub fn sync_servers_to_app(
         AppType::Codex => sync_servers_to_codex(servers),
         AppType::Gemini => sync_servers_to_gemini(servers),
     }
+}
+
+/// 获取所有应用的 MCP 服务器统一视图（合并所有应用配置）
+///
+/// 返回格式：Record<serverId, McpServer>
+/// 其中 McpServer.apps 字段标记了该服务器在哪些应用中启用
+pub fn get_unified_servers() -> Result<HashMap<String, McpServer>, String> {
+    // 读取三个应用的配置
+    let claude_servers = import_from_claude().unwrap_or_default();
+    let codex_servers = import_from_codex().unwrap_or_default();
+    let gemini_servers = import_from_gemini().unwrap_or_default();
+
+    // 合并所有服务器
+    let mut unified: HashMap<String, McpServer> = HashMap::new();
+
+    // 收集所有唯一的服务器 ID
+    let mut all_ids: std::collections::HashSet<String> = std::collections::HashSet::new();
+    all_ids.extend(claude_servers.keys().cloned());
+    all_ids.extend(codex_servers.keys().cloned());
+    all_ids.extend(gemini_servers.keys().cloned());
+
+    // 为每个 ID 创建统一的服务器结构
+    for id in all_ids {
+        let claude_spec = claude_servers.get(&id);
+        let codex_spec = codex_servers.get(&id);
+        let gemini_spec = gemini_servers.get(&id);
+
+        // 优先使用 Claude 的配置，其次 Codex，最后 Gemini
+        let server_spec = claude_spec
+            .or(codex_spec)
+            .or(gemini_spec)
+            .cloned()
+            .unwrap_or(Value::Object(serde_json::Map::new()));
+
+        // 创建统一服务器
+        unified.insert(
+            id.clone(),
+            McpServer {
+                id: id.clone(),
+                name: id.clone(),
+                server: server_spec,
+                apps: McpApps {
+                    claude: claude_spec.is_some(),
+                    codex: codex_spec.is_some(),
+                    gemini: gemini_spec.is_some(),
+                },
+                description: None,
+                homepage: None,
+                docs: None,
+                tags: Vec::new(),
+            },
+        );
+    }
+
+    Ok(unified)
 }
