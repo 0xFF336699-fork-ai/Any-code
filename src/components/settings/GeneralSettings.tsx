@@ -29,7 +29,7 @@ export const GeneralSettings: React.FC<GeneralSettingsProps> = ({
 }) => {
   const { t } = useTranslation();
   const { theme, setTheme } = useTheme();
-  
+
   // Custom Claude path state
   const [customClaudePath, setCustomClaudePath] = useState<string>("");
   const [isCustomPathMode, setIsCustomPathMode] = useState(false);
@@ -41,6 +41,16 @@ export const GeneralSettings: React.FC<GeneralSettingsProps> = ({
   const [codexPathError, setCodexPathError] = useState<string | null>(null);
   const [codexPathValid, setCodexPathValid] = useState<boolean | null>(null);
   const [validatingCodexPath, setValidatingCodexPath] = useState(false);
+
+  // Prompt Suggestions state
+  const [enablePromptSuggestion, setEnablePromptSuggestion] = useState(() => {
+    try {
+      const stored = localStorage.getItem('enable_prompt_suggestion');
+      return stored !== null ? stored === 'true' : true;
+    } catch {
+      return true;
+    }
+  });
 
   /**
    * 初始化时加载当前 Codex 路径，并在 refresh 事件触发时同步
@@ -221,6 +231,20 @@ export const GeneralSettings: React.FC<GeneralSettingsProps> = ({
     }
   };
 
+  /**
+   * Handle Prompt Suggestions toggle
+   */
+  const handlePromptSuggestionToggle = (checked: boolean) => {
+    setEnablePromptSuggestion(checked);
+    try {
+      localStorage.setItem('enable_prompt_suggestion', checked.toString());
+      // Dispatch custom event to sync with FloatingPromptInput
+      window.dispatchEvent(new CustomEvent('prompt-suggestion-toggle', { detail: { enabled: checked } }));
+    } catch {
+      // Ignore localStorage errors
+    }
+  };
+
   return (
     <Card className="p-6 space-y-6">
       <div>
@@ -313,6 +337,21 @@ export const GeneralSettings: React.FC<GeneralSettingsProps> = ({
               id="verbose"
               checked={settings?.verbose === true}
               onCheckedChange={(checked) => updateSetting("verbose", checked)}
+            />
+          </div>
+
+          {/* Prompt Suggestions */}
+          <div className="flex items-center justify-between">
+            <div className="space-y-0.5 flex-1">
+              <Label htmlFor="promptSuggestion">{t('generalSettings.promptSuggestion')}</Label>
+              <p className="text-xs text-muted-foreground">
+                {t('generalSettings.promptSuggestionDescription')}
+              </p>
+            </div>
+            <Switch
+              id="promptSuggestion"
+              checked={enablePromptSuggestion}
+              onCheckedChange={handlePromptSuggestionToggle}
             />
           </div>
 

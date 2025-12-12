@@ -102,6 +102,7 @@ export class ClaudeSDKService {
       this.client = new Anthropic({
         apiKey,
         baseURL,
+        dangerouslyAllowBrowser: true, // Tauri 应用不是真正的浏览器，可以安全启用
       });
 
       this.isInitialized = true;
@@ -147,7 +148,7 @@ export class ClaudeSDKService {
         model,
         max_tokens: maxTokens,
         temperature: options.temperature || this.config.temperature,
-        top_p: this.config.topP,
+        // 注意：不能同时使用 temperature 和 top_p
         system: options.systemPrompt,
         messages: messages.map(msg => ({
           role: msg.role as 'user' | 'assistant',

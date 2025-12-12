@@ -188,13 +188,19 @@ export function useSessionLifecycle(config: UseSessionLifecycleConfig): UseSessi
       }
 
       // Convert history to messages format
+      // Track warned types to avoid console spam
+      const warnedTypes = new Set<string>();
       const loadedMessages: ClaudeStreamMessage[] = history
         .filter(entry => {
-          // Filter out invalid message types like 'queue-operation'
+          // Filter out invalid message types like 'queue-operation', 'file-history-snapshot'
           const type = entry.type;
           const validTypes = ['user', 'assistant', 'system', 'result', 'summary', 'thinking', 'tool_use'];
           if (type && !validTypes.includes(type)) {
-            console.warn('[useSessionLifecycle] Filtering out invalid message type:', type);
+            // Only warn once per type to avoid console spam
+            if (!warnedTypes.has(type)) {
+              warnedTypes.add(type);
+              console.debug('[useSessionLifecycle] Filtering out message type:', type);
+            }
             return false;
           }
           return true;

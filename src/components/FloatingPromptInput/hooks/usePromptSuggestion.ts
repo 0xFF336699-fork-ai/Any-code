@@ -13,7 +13,7 @@
 
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { claudeSDK } from '@/lib/claudeSDK';
-import { getConversationContext, extractTextFromContent } from '@/lib/sessionHelpers';
+import { extractTextFromContent } from '@/lib/sessionHelpers';
 import type { ClaudeStreamMessage } from '@/types/claude';
 
 // ============================================================================
@@ -50,7 +50,7 @@ export interface UsePromptSuggestionReturn {
 // Constants
 // ============================================================================
 
-const DEFAULT_MODEL = 'claude-3-5-haiku-20241022';
+const DEFAULT_MODEL = 'claude-haiku-4-5-20251001';
 const DEFAULT_DEBOUNCE_MS = 600;
 const DEFAULT_CACHE_EXPIRY_MS = 120000; // 2 minutes
 const DEFAULT_MAX_CACHE_SIZE = 50;
@@ -59,18 +59,25 @@ const DEFAULT_MAX_CACHE_SIZE = 50;
 const SUGGESTION_SYSTEM_PROMPT = `你是一个智能编程助手，根据对话历史预测用户下一步可能的输入。
 
 核心规则：
-1. 只返回一个简短的建议（5-25字）
+1. 只返回一个简短的建议（5-30字）
 2. 建议应该是用户可能想说的完整句子或指令
 3. 建议应该与上下文相关，帮助用户完成任务
 4. 如果无法预测或上下文不明确，返回空字符串
 5. 不要返回任何解释、前缀或格式标记
 6. 使用与用户相同的语言
 
+上下文理解：
+- 对话历史中包含 [工具调用] 表示助手执行了某个操作
+- [工具结果] 表示操作的返回结果
+- [工具错误] 表示操作失败
+- [执行结果] 表示命令行输出
+
 常见场景建议：
-- 代码修改后：建议运行测试、提交代码
-- 错误发生后：建议修复错误、查看日志
-- 功能完成后：建议验证、优化、添加文档
-- 问题提出后：建议相关的后续问题
+- 代码修改后：运行测试、提交代码、检查效果
+- 工具调用成功后：继续下一步操作、验证结果
+- 工具调用失败后：修复错误、尝试其他方案
+- 问题解答后：感谢、追问、实践建议
+- 功能完成后：总结更改、添加测试、提交代码
 
 直接输出建议文本，不要加引号或其他标记。`;
 
@@ -101,6 +108,77 @@ const TEMPLATE_SUGGESTIONS: Record<string, string[]> = {
 // ============================================================================
 // Helper Functions
 // ============================================================================
+
+/**
+ * 从消息内容中提取丰富的上下文信息
+ * 包括：文本内容、工具调用、工具结果等
+ */
+function extractRichContext(content: any[] | undefined): string {
+  if (!content || !Array.isArray(content)) return '';
+
+  const parts: string[] = [];
+
+  for (const block of content) {
+    if (block.type === 'text' && block.text) {
+      // 文本内容（不截断）
+      parts.push(block.text);
+    } else if (block.type === 'tool_use') {
+      // 工具调用：包含工具名和输入摘要
+      const toolName = block.name || 'unknown_tool';
+      const inputStr = typeof block.input === 'object'
+        ? JSON.stringify(block.input).slice(0, 200)
+        : String(block.input || '').slice(0, 200);
+      parts.push(`[调用工具: ${toolName}] ${inputStr}`);
+    } else if (block.type === 'tool_result') {
+      // 工具结果：包含错误状态
+      const isError = block.is_error === true;
+      const resultContent = typeof block.content === 'string'
+        ? block.content
+        : JSON.stringify(block.content || '').slice(0, 300);
+      parts.push(isError
+        ? `[工具错误] ${resultContent}`
+        : `[工具结果] ${resultContent.slice(0, 200)}`);
+    }
+  }
+
+  return parts.join('\n');
+}
+
+/**
+ * 从消息数组中提取完整的会话上下文
+ * 对齐 Claude Code CLI 的上下文读取能力
+ */
+function extractFullSessionContext(messages: ClaudeStreamMessage[]): string {
+  // 获取最近 6 条有意义的消息（增加数量以获取更多上下文）
+  const meaningfulMessages = messages.filter(msg => {
+    if (msg.type === 'system' && msg.subtype === 'init') return false;
+    if (!msg.message?.content?.length && !msg.result) return false;
+    return true;
+  }).slice(-6);
+
+  const contextParts: string[] = [];
+
+  for (const msg of meaningfulMessages) {
+    if (msg.type === 'user' && msg.message) {
+      const text = extractRichContext(msg.message.content) || extractTextFromContent(msg.message.content);
+      if (text) {
+        contextParts.push(`[用户] ${text.slice(0, 500)}`);
+      }
+    } else if (msg.type === 'assistant' && msg.message) {
+      const text = extractRichContext(msg.message.content) || extractTextFromContent(msg.message.content);
+      if (text) {
+        // 助手消息可能较长，适当截断但保留关键信息
+        contextParts.push(`[助手] ${text.slice(0, 800)}`);
+      }
+    } else if (msg.type === 'result' && msg.result) {
+      // 执行结果：包含命令输出等
+      const resultText = msg.result.slice(0, 400);
+      contextParts.push(`[执行结果] ${resultText}`);
+    }
+  }
+
+  return contextParts.join('\n\n');
+}
 
 /**
  * 生成缓存 key
@@ -229,17 +307,16 @@ export function usePromptSuggestion({
    */
   const generateAISuggestion = useCallback(async (requestId: number): Promise<PromptSuggestion | null> => {
     try {
-      // 构建上下文
-      const context = getConversationContext(messages, { maxMessages: 4 });
-      const contextStr = context.join('\n');
+      // 🆕 使用增强的上下文提取（对齐 CLI 功能）
+      const contextStr = extractFullSessionContext(messages);
 
       if (!contextStr.trim()) {
         return null;
       }
 
       const userMessage = currentPrompt.trim()
-        ? `当前用户正在输入：「${currentPrompt}」\n\n对话历史：\n${contextStr}\n\n请预测用户完整的输入内容：`
-        : `对话历史：\n${contextStr}\n\n请预测用户下一句可能的输入：`;
+        ? `当前用户正在输入：「${currentPrompt}」\n\n完整对话历史（包含工具调用和执行结果）：\n${contextStr}\n\n请预测用户完整的输入内容：`
+        : `完整对话历史（包含工具调用和执行结果）：\n${contextStr}\n\n请预测用户下一句可能的输入：`;
 
       const response = await claudeSDK.sendMessage(
         [{ role: 'user', content: userMessage }],

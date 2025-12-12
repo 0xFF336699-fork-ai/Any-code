@@ -185,7 +185,7 @@ const FloatingPromptInputInner = (
   });
 
   // 🆕 Prompt Suggestions Hook
-  const [enablePromptSuggestion, _setEnablePromptSuggestion] = useState(() => {
+  const [enablePromptSuggestion, setEnablePromptSuggestion] = useState(() => {
     try {
       const stored = localStorage.getItem('enable_prompt_suggestion');
       return stored !== null ? stored === 'true' : true; // 默认启用
@@ -194,14 +194,16 @@ const FloatingPromptInputInner = (
     }
   });
 
-  // Persist prompt suggestion setting
+  // Listen for setting changes from GeneralSettings
   useEffect(() => {
-    try {
-      localStorage.setItem('enable_prompt_suggestion', enablePromptSuggestion.toString());
-    } catch {
-      // Ignore localStorage errors
-    }
-  }, [enablePromptSuggestion]);
+    const handleToggle = (e: CustomEvent<{ enabled: boolean }>) => {
+      setEnablePromptSuggestion(e.detail.enabled);
+    };
+    window.addEventListener('prompt-suggestion-toggle', handleToggle as EventListener);
+    return () => {
+      window.removeEventListener('prompt-suggestion-toggle', handleToggle as EventListener);
+    };
+  }, []);
 
   const {
     suggestion,
@@ -533,6 +535,7 @@ const FloatingPromptInputInner = (
             // 🆕 Prompt Suggestions
             suggestion={suggestion}
             isSuggestionLoading={isSuggestionLoading}
+            enableSuggestion={enablePromptSuggestion}
           />
 
           <ControlBar

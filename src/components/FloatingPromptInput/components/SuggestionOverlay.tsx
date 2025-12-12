@@ -1,8 +1,8 @@
 /**
  * SuggestionOverlay Component
  *
- * 在输入框中显示灰色的建议文字叠加层
- * 类似 Claude Code 2.0.67 的 Prompt Suggestions 功能
+ * 在输入框中显示建议文字叠加层
+ * 样式与 placeholder 一致，作为智能 placeholder 替代方案
  */
 
 import React from 'react';
@@ -45,6 +45,7 @@ function getCompletionText(suggestion: string, currentPrompt: string): string {
 
 /**
  * SuggestionOverlay - 建议文字叠加层
+ * 使用与 placeholder 相同的样式
  */
 export const SuggestionOverlay: React.FC<SuggestionOverlayProps> = ({
   suggestion,
@@ -71,63 +72,37 @@ export const SuggestionOverlay: React.FC<SuggestionOverlayProps> = ({
     <div
       className={cn(
         "pointer-events-none absolute inset-0 flex items-start",
-        "px-3 py-2 text-sm",
         "overflow-hidden",
+        "z-10",
         className
       )}
       aria-hidden="true"
+      style={{
+        // 精确匹配 textarea 的内边距
+        padding: '9px 40px 9px 12px',
+      }}
     >
       {/* 占位：与用户输入等宽的透明区域 */}
       {!isFullReplacement && currentPrompt && (
-        <span className="invisible whitespace-pre-wrap break-words">
+        <span className="invisible whitespace-pre-wrap break-words text-sm">
           {currentPrompt}
         </span>
       )}
 
-      {/* 建议文本 */}
+      {/* 建议文本 - 使用 placeholder 样式 */}
       <span
         className={cn(
-          "whitespace-pre-wrap break-words",
-          isFullReplacement
-            ? "text-muted-foreground/40 italic" // 完整替代用斜体
-            : "text-muted-foreground/50", // 补全用正常样式
+          "whitespace-pre-wrap break-words text-sm",
+          // 使用与 placeholder 相同的颜色
+          "text-muted-foreground",
         )}
       >
-        {isFullReplacement ? `💡 ${completionText}` : completionText}
+        {completionText}
+        {/* Tab 提示内联显示，类似官方 CLI */}
+        <span className="text-muted-foreground/50 ml-2 text-xs">
+          (tab to accept)
+        </span>
       </span>
-    </div>
-  );
-};
-
-/**
- * SuggestionHint - Tab 提示组件
- */
-interface SuggestionHintProps {
-  visible: boolean;
-  className?: string;
-}
-
-export const SuggestionHint: React.FC<SuggestionHintProps> = ({
-  visible,
-  className,
-}) => {
-  if (!visible) return null;
-
-  return (
-    <div
-      className={cn(
-        "absolute right-12 bottom-2",
-        "flex items-center gap-1",
-        "text-xs text-muted-foreground/60",
-        "pointer-events-none select-none",
-        "transition-opacity duration-200",
-        className
-      )}
-    >
-      <kbd className="px-1.5 py-0.5 rounded bg-muted/50 border border-border/50 font-mono text-[10px]">
-        Tab
-      </kbd>
-      <span>接受</span>
     </div>
   );
 };

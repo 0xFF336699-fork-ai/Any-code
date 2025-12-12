@@ -562,6 +562,8 @@
     "includeCoauthoredDescription": "Add Claude signature in git commits and pull requests",
     "verboseOutput": "Verbose Output",
     "verboseOutputDescription": "Show full bash and command output",
+    "promptSuggestion": "Prompt Suggestions",
+    "promptSuggestionDescription": "Auto-generate input suggestions based on conversation context, press Tab to accept",
     "disableRewindGitOps": "Disable Git Operations in Rewind",
     "disableRewindGitOpsDescription": "When enabled, rewind can only delete conversation history, cannot rollback code changes (suitable for collaboration or production)",
     "chatRetentionDays": "Chat Retention Days",

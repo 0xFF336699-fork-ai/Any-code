@@ -6,7 +6,7 @@ import { Maximize2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { AnimatePresence } from "framer-motion";
 import { FilePicker } from "../FilePicker";
-import { SuggestionOverlay, SuggestionHint } from "./components/SuggestionOverlay";
+import { SuggestionOverlay } from "./components/SuggestionOverlay";
 import type { PromptSuggestion } from "./hooks/usePromptSuggestion";
 
 interface InputAreaProps {
@@ -32,6 +32,8 @@ interface InputAreaProps {
   // 🆕 Prompt Suggestions
   suggestion?: PromptSuggestion | null;
   isSuggestionLoading?: boolean;
+  /** 是否启用 Prompt Suggestions（启用时隐藏 placeholder） */
+  enableSuggestion?: boolean;
 }
 
 export const InputArea = forwardRef<HTMLTextAreaElement, InputAreaProps>(({
@@ -55,8 +57,20 @@ export const InputArea = forwardRef<HTMLTextAreaElement, InputAreaProps>(({
   onCompositionEnd,
   suggestion,
   isSuggestionLoading,
+  enableSuggestion = true,
 }, ref) => {
   const { t } = useTranslation();
+
+  // 当启用 Prompt Suggestions 时，完全隐藏 placeholder
+  // 让 AI 建议作为智能 placeholder 替代
+  const getPlaceholder = () => {
+    // 如果启用了建议功能，不显示 placeholder（由 SuggestionOverlay 替代）
+    if (enableSuggestion) {
+      return '';
+    }
+    // 否则显示默认 placeholder
+    return dragActive ? t('promptInput.placeholderDragActive') : t('promptInput.placeholder');
+  };
 
   return (
     <div className="relative">
@@ -76,7 +90,8 @@ export const InputArea = forwardRef<HTMLTextAreaElement, InputAreaProps>(({
         // 🔧 Mac 输入法兼容：监听 composition 事件
         onCompositionStart={onCompositionStart}
         onCompositionEnd={onCompositionEnd}
-        placeholder={dragActive ? t('promptInput.placeholderDragActive') : t('promptInput.placeholder')}
+        // 🆕 启用建议时隐藏 placeholder，由 SuggestionOverlay 替代
+        placeholder={getPlaceholder()}
         disabled={disabled}
         className={cn(
           "min-h-[56px] max-h-[300px] resize-none pr-10 overflow-y-auto",
@@ -92,9 +107,6 @@ export const InputArea = forwardRef<HTMLTextAreaElement, InputAreaProps>(({
         onDragOver={onDragOver}
         onDrop={onDrop}
       />
-
-      {/* 🆕 Tab 提示 */}
-      <SuggestionHint visible={!!suggestion && !isSuggestionLoading} />
 
       <Button
         variant="ghost"
