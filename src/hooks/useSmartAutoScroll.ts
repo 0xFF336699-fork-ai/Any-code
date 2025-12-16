@@ -5,7 +5,7 @@
  * 提供智能滚动管理：用户手动滚动检测、自动滚动到底部、流式输出滚动
  */
 
-import { useRef, useState, useEffect } from 'react';
+import { useRef, useState, useEffect, useMemo } from 'react';
 import type { ClaudeStreamMessage } from '@/types/claude';
 
 interface SmartAutoScrollConfig {
@@ -13,6 +13,17 @@ interface SmartAutoScrollConfig {
   displayableMessages: ClaudeStreamMessage[];
   /** 是否正在加载（流式输出时） */
   isLoading: boolean;
+}
+
+/**
+ * 计算消息的内容哈希，用于检测内容变化
+ */
+function getLastMessageContentHash(messages: ClaudeStreamMessage[]): string {
+  if (messages.length === 0) return '';
+  const lastMsg = messages[messages.length - 1];
+  // 简单地使用内容长度和类型作为哈希
+  const contentLength = JSON.stringify(lastMsg.message?.content || '').length;
+  return `${messages.length}-${lastMsg.type}-${contentLength}`;
 }
 
 interface SmartAutoScrollReturn {
@@ -50,6 +61,12 @@ export function useSmartAutoScroll(config: SmartAutoScrollConfig): SmartAutoScro
   const parentRef = useRef<HTMLDivElement>(null);
   const lastScrollPositionRef = useRef(0);
   const isAutoScrollingRef = useRef(false); // 🆕 Track if scroll was initiated by code
+
+  // 🆕 计算最后一条消息的内容哈希，用于检测内容变化
+  const lastMessageHash = useMemo(
+    () => getLastMessageContentHash(displayableMessages),
+    [displayableMessages]
+  );
 
   // Helper to perform auto-scroll safely
   const performAutoScroll = () => {
@@ -111,6 +128,7 @@ export function useSmartAutoScroll(config: SmartAutoScrollConfig): SmartAutoScro
   }, []); // Empty deps - event listener only needs to be registered once
 
   // Smart auto-scroll for new messages (initial load or update)
+  // 🆕 使用 lastMessageHash 替代 displayableMessages.length，确保内容变化时也能触发滚动
   useEffect(() => {
     if (displayableMessages.length > 0 && shouldAutoScroll && !userScrolled) {
       const timeoutId = setTimeout(() => {
@@ -119,20 +137,32 @@ export function useSmartAutoScroll(config: SmartAutoScrollConfig): SmartAutoScro
 
       return () => clearTimeout(timeoutId);
     }
-  }, [displayableMessages.length, shouldAutoScroll, userScrolled]);
+  }, [lastMessageHash, shouldAutoScroll, userScrolled]);
 
   // Enhanced streaming scroll - only when user hasn't manually scrolled away
+  // 🆕 流式输出时持续滚动，不再依赖消息长度
   useEffect(() => {
-    if (isLoading && displayableMessages.length > 0 && shouldAutoScroll && !userScrolled) {
+    if (isLoading && shouldAutoScroll && !userScrolled) {
       // Immediate scroll on update
       performAutoScroll();
 
-      // Frequent updates during streaming
-      const intervalId = setInterval(performAutoScroll, 200);
+      // Frequent updates during streaming (every 150ms for smoother experience)
+      const intervalId = setInterval(performAutoScroll, 150);
 
       return () => clearInterval(intervalId);
     }
-  }, [isLoading, displayableMessages.length, shouldAutoScroll, userScrolled]);
+  }, [isLoading, shouldAutoScroll, userScrolled]);
+
+  // 🆕 当消息内容变化时触发额外滚动（确保流式输出时跟踪最新内容）
+  useEffect(() => {
+    if (shouldAutoScroll && !userScrolled && displayableMessages.length > 0) {
+      // 使用 requestAnimationFrame 确保在 DOM 更新后滚动
+      const frameId = requestAnimationFrame(() => {
+        performAutoScroll();
+      });
+      return () => cancelAnimationFrame(frameId);
+    }
+  }, [lastMessageHash]);
 
   return {
     parentRef,
