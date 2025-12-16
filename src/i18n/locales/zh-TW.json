@@ -1338,5 +1338,15 @@
     "newMessage": "新訊息 - 點擊捲動到底部",
     "scrollToTop": "捲動到頂部",
     "scrollToBottom": "捲動到底部"
+  },
+  "contextWindow": {
+    "title": "上下文視窗使用情況",
+    "usage": "使用率",
+    "inputTokens": "輸入 Tokens",
+    "outputTokens": "輸出 Tokens",
+    "cacheCreation": "快取建立",
+    "cacheRead": "快取讀取",
+    "criticalWarning": "上下文視窗接近上限，建議開始新對話",
+    "highWarning": "上下文使用率較高"
   }
 }

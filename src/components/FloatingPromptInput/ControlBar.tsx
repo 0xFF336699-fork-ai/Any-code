@@ -13,6 +13,7 @@ import { ModelSelector } from "./ModelSelector";
 import { ThinkingModeToggle } from "./ThinkingModeToggle";
 import { PlanModeToggle } from "./PlanModeToggle";
 import { SessionToolbar } from "@/components/SessionToolbar";
+import { ContextWindowIndicator } from "@/components/widgets/ContextWindowIndicator";
 import { ModelType, ModelConfig } from "./types";
 
 interface ControlBarProps {
@@ -165,6 +166,15 @@ export const ControlBar: React.FC<ControlBarProps> = ({
             className="w-80"
           />
         </motion.div>
+      )}
+
+      {/* Context Window Indicator - 仅 Claude 引擎显示 */}
+      {executionEngineConfig.engine === 'claude' && hasMessages && messages && (
+        <ContextWindowIndicator
+          messages={messages}
+          model={selectedModel}
+          show={true}
+        />
       )}
 
       {/* Loading Indicator */}

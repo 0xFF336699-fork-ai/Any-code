@@ -1352,5 +1352,15 @@
     "newMessage": "新消息 - 点击滚动到底部",
     "scrollToTop": "滚动到顶部",
     "scrollToBottom": "滚动到底部"
+  },
+  "contextWindow": {
+    "title": "上下文窗口使用情况",
+    "usage": "使用率",
+    "inputTokens": "输入 Tokens",
+    "outputTokens": "输出 Tokens",
+    "cacheCreation": "缓存创建",
+    "cacheRead": "缓存读取",
+    "criticalWarning": "上下文窗口接近上限，建议开始新会话",
+    "highWarning": "上下文使用率较高"
   }
 }

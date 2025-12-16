@@ -78,6 +78,49 @@ export const CLAUDE_PRICING = {
   }
 } as const;
 
+// ============================================================================
+// Claude Model Context Windows
+// 各模型的上下文窗口大小（tokens）
+// Source: https://docs.claude.com/en/docs/about-claude/models/overview
+// ============================================================================
+
+export const CLAUDE_CONTEXT_WINDOWS = {
+  // Claude 4.5 Series
+  'claude-opus-4-5': 200000,
+  'claude-opus-4-5-20251101': 200000,
+  'claude-sonnet-4-5': 200000,
+  'claude-sonnet-4-5-20250929': 200000,
+  'claude-haiku-4-5': 200000,
+  'claude-haiku-4-5-20251001': 200000,
+  // Claude 4.1 Series
+  'claude-opus-4-1': 200000,
+  'claude-opus-4-1-20250805': 200000,
+  // 默认值
+  'default': 200000,
+} as const;
+
+/**
+ * 获取模型的上下文窗口大小
+ * @param model - 模型名称
+ * @returns 上下文窗口大小（tokens）
+ */
+export function getContextWindowSize(model?: string): number {
+  if (!model) return CLAUDE_CONTEXT_WINDOWS['default'];
+
+  // 尝试直接匹配
+  if (model in CLAUDE_CONTEXT_WINDOWS) {
+    return CLAUDE_CONTEXT_WINDOWS[model as keyof typeof CLAUDE_CONTEXT_WINDOWS];
+  }
+
+  // 尝试通过别名匹配
+  const normalizedModel = MODEL_ALIASES[model as keyof typeof MODEL_ALIASES];
+  if (normalizedModel && normalizedModel in CLAUDE_CONTEXT_WINDOWS) {
+    return CLAUDE_CONTEXT_WINDOWS[normalizedModel as keyof typeof CLAUDE_CONTEXT_WINDOWS];
+  }
+
+  return CLAUDE_CONTEXT_WINDOWS['default'];
+}
+
 // 标准化模型名称映射
 export const MODEL_ALIASES = {
   'opus': 'claude-opus-4-5', // 默认最新版本

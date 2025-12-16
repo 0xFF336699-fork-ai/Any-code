@@ -1358,5 +1358,15 @@
     "newMessage": "New message - Click to scroll to bottom",
     "scrollToTop": "Scroll to top",
     "scrollToBottom": "Scroll to bottom"
+  },
+  "contextWindow": {
+    "title": "Context Window Usage",
+    "usage": "Usage",
+    "inputTokens": "Input Tokens",
+    "outputTokens": "Output Tokens",
+    "cacheCreation": "Cache Creation",
+    "cacheRead": "Cache Read",
+    "criticalWarning": "Context window nearly full, consider starting a new session",
+    "highWarning": "Context usage is high"
   }
 }
