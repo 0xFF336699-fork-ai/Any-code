@@ -590,9 +590,9 @@ const FloatingPromptInputInner = (
         )}
       </AnimatePresence>
 
-      {/* Main Floating Input */}
+      {/* ✅ 重构布局: 输入区域不再使用 fixed 定位，作为 Flex 容器的一部分 */}
       <div className={cn(
-        "fixed bottom-0 left-0 right-0 z-40 border-t border-[var(--glass-border)] bg-[var(--glass-bg)] backdrop-blur-[var(--glass-blur)] shadow-[var(--glass-shadow)]",
+        "flex-shrink-0 border-t border-[var(--glass-border)] bg-[var(--glass-bg)] backdrop-blur-[var(--glass-blur)] shadow-[var(--glass-shadow)]",
         className
       )}>
         <AttachmentPreview

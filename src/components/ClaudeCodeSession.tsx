@@ -880,10 +880,11 @@ const ClaudeCodeSessionInner: React.FC<ClaudeCodeSessionProps> = ({
 
   return (
     <div className={cn("flex h-full bg-background", className)}>
-      {/* Main Content Area */}
+      {/* Main Content Area - 重构布局：使用 Flexbox 实现消息区域与输入区域的完全分离 */}
       <div className="flex-1 flex flex-col overflow-hidden">
+        {/* 消息展示区域容器 - flex-1 占据剩余空间，min-h-0 防止 flex 子元素溢出 */}
         <div className={cn(
-          "flex-1 overflow-hidden transition-all duration-300"
+          "flex-1 min-h-0 overflow-hidden transition-all duration-300 relative"
         )}>
           {showPreview ? (
             // Split pane layout when preview is active
@@ -911,8 +912,9 @@ const ClaudeCodeSessionInner: React.FC<ClaudeCodeSessionProps> = ({
               className="h-full"
             />
           ) : (
-            // Original layout when no preview
-            <div className="h-full flex flex-col max-w-5xl lg:max-w-6xl xl:max-w-7xl 2xl:max-w-[85%] mx-auto">
+            // ✅ 重构布局: 使用 Flexbox 实现消息区域与输入区域的完全分离
+            // 消息区域独立滚动，输入区域固定在底部
+            <div className="h-full flex flex-col relative">
               {projectPathInput}
               <PlanModeStatusBar isPlanMode={isPlanMode} />
               {messagesList}
@@ -927,81 +929,10 @@ const ClaudeCodeSessionInner: React.FC<ClaudeCodeSessionProps> = ({
                   </div>
                 </div>
               )}
-            </div>
-          )}
-        </div>
 
-
-        {/* Floating Prompt Input - Always visible */}
-        <ErrorBoundary>
-          {/* Queued Prompts Display */}
-          <AnimatePresence>
-            {queuedPrompts.length > 0 && (
-              <motion.div
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: 20 }}
-                className="fixed left-[calc(50%+var(--sidebar-width,4rem)/2)] -translate-x-1/2 z-30 w-full max-w-3xl px-4 transition-[left] duration-300"
-                style={{
-                  bottom: 'calc(140px + env(safe-area-inset-bottom))', // 在输入区域上方
-                }}
-              >
-                <div className="floating-element backdrop-enhanced rounded-lg p-3 space-y-2">
-                  <div className="flex items-center justify-between">
-                    <div className="text-xs font-medium text-muted-foreground mb-1">
-                      {t('session.queuedPrompts', { count: queuedPrompts.length })}
-                    </div>
-                    <Button variant="ghost" size="icon" onClick={() => setQueuedPromptsCollapsed(prev => !prev)}>
-                      {queuedPromptsCollapsed ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />}
-                    </Button>
-                  </div>
-                  {!queuedPromptsCollapsed && queuedPrompts.map((queuedPrompt, index) => (
-                    <motion.div
-                      key={queuedPrompt.id}
-                      initial={{ opacity: 0, x: -20 }}
-                      animate={{ opacity: 1, x: 0 }}
-                      exit={{ opacity: 0, x: 20 }}
-                      transition={{ delay: index * 0.05 }}
-                      className="flex items-start gap-2 bg-muted/50 rounded-md p-2"
-                    >
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-2 mb-1">
-                          <span className="text-xs font-medium text-muted-foreground">#{index + 1}</span>
-                          <span className="text-xs px-1.5 py-0.5 bg-primary/10 text-primary rounded">
-                            {queuedPrompt.model === "opus" ? "Opus" : queuedPrompt.model === "sonnet1m" ? "Sonnet 1M" : "Sonnet"}
-                          </span>
-                        </div>
-                        <p className="text-sm line-clamp-2 break-words">{queuedPrompt.prompt}</p>
-                      </div>
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className="h-6 w-6 flex-shrink-0"
-                        onClick={() => setQueuedPrompts(prev => prev.filter(p => p.id !== queuedPrompt.id))}
-                      >
-                        <X className="h-3 w-3" />
-                      </Button>
-                    </motion.div>
-                  ))}
-                </div>
-              </motion.div>
-            )}
-          </AnimatePresence>
-
-          {/* Enhanced scroll controls with smart indicators */}
-          {displayableMessages.length > 5 && (
-            <div className="absolute inset-x-0 bottom-0 pointer-events-none z-40 flex justify-center">
-              <div className="w-full max-w-5xl lg:max-w-6xl xl:max-w-7xl 2xl:max-w-[85%] px-4 relative h-full">
-                <motion.div
-                  initial={{ opacity: 0, scale: 0.8 }}
-                  animate={{ opacity: 1, scale: 1 }}
-                  exit={{ opacity: 0, scale: 0.8 }}
-                  transition={{ delay: 0.5 }}
-                  className="absolute right-4 pointer-events-auto"
-                  style={{
-                    bottom: 'calc(145px + env(safe-area-inset-bottom))', // 确保在输入区域上方且有足够间距
-                  }}
-                >
+              {/* ✅ 滚动控件 - 放在消息区域内，使用 absolute 定位 */}
+              {displayableMessages.length > 5 && (
+                <div className="absolute right-4 bottom-4 pointer-events-auto z-40">
                   <div className="flex flex-col gap-1.5">
                     {/* Prompt Navigator Button */}
                     {!showPromptNavigator && (
@@ -1093,37 +1024,89 @@ const ClaudeCodeSessionInner: React.FC<ClaudeCodeSessionProps> = ({
                       </Button>
                     </div>
                   </div>
-                </motion.div>
-              </div>
+                </div>
+              )}
             </div>
           )}
+        </div>
 
-          <div className={cn(
-            "fixed bottom-0 left-[var(--sidebar-width,4rem)] right-0 transition-all duration-300 z-50"
-          )}>
-            <FloatingPromptInput
-              className="left-[var(--sidebar-width,4rem)] transition-[left] duration-300"
-              ref={floatingPromptRef}
-              onSend={handleSendPrompt}
-              onCancel={handleCancelExecution}
-              isLoading={isLoading}
-              disabled={!projectPath}
-              projectPath={projectPath}
-              sessionId={effectiveSession?.id}         // 🆕 传递会话 ID
-              projectId={effectiveSession?.project_id} // 🆕 传递项目 ID
-              sessionModel={session?.model}
-              getConversationContext={getConversationContext}
-              messages={messages}                      // 🆕 传递完整消息列表
-              isPlanMode={isPlanMode}
-              onTogglePlanMode={handleTogglePlanMode}
-              sessionCost={formatCost(costStats.totalCost)}
-              sessionStats={costStats}
-              hasMessages={messages.length > 0}
-              session={effectiveSession || undefined}  // 🆕 传递完整会话信息用于导出
-              executionEngineConfig={executionEngineConfig}              // 🆕 Codex 集成
-              onExecutionEngineConfigChange={setExecutionEngineConfig}   // 🆕 Codex 集成
-            />
-          </div>
+
+        {/* ✅ 重构：队列提示词作为 Flex 的一部分，显示在输入框上方 */}
+        <AnimatePresence>
+          {queuedPrompts.length > 0 && (
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: 20 }}
+              className="flex-shrink-0 w-full max-w-3xl mx-auto px-4 pb-2"
+            >
+              <div className="floating-element backdrop-enhanced rounded-lg p-3 space-y-2">
+                <div className="flex items-center justify-between">
+                  <div className="text-xs font-medium text-muted-foreground mb-1">
+                    {t('session.queuedPrompts', { count: queuedPrompts.length })}
+                  </div>
+                  <Button variant="ghost" size="icon" onClick={() => setQueuedPromptsCollapsed(prev => !prev)}>
+                    {queuedPromptsCollapsed ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />}
+                  </Button>
+                </div>
+                {!queuedPromptsCollapsed && queuedPrompts.map((queuedPrompt, index) => (
+                  <motion.div
+                    key={queuedPrompt.id}
+                    initial={{ opacity: 0, x: -20 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    exit={{ opacity: 0, x: 20 }}
+                    transition={{ delay: index * 0.05 }}
+                    className="flex items-start gap-2 bg-muted/50 rounded-md p-2"
+                  >
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2 mb-1">
+                        <span className="text-xs font-medium text-muted-foreground">#{index + 1}</span>
+                        <span className="text-xs px-1.5 py-0.5 bg-primary/10 text-primary rounded">
+                          {queuedPrompt.model === "opus" ? "Opus" : queuedPrompt.model === "sonnet1m" ? "Sonnet 1M" : "Sonnet"}
+                        </span>
+                      </div>
+                      <p className="text-sm line-clamp-2 break-words">{queuedPrompt.prompt}</p>
+                    </div>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-6 w-6 flex-shrink-0"
+                      onClick={() => setQueuedPrompts(prev => prev.filter(p => p.id !== queuedPrompt.id))}
+                    >
+                      <X className="h-3 w-3" />
+                    </Button>
+                  </motion.div>
+                ))}
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
+
+        {/* Floating Prompt Input - 输入区域 */}
+        <ErrorBoundary>
+          {/* ✅ 重构：输入区域作为 Flex 容器的一部分，不再使用 fixed 定位 */}
+          <FloatingPromptInput
+            className="flex-shrink-0 transition-[left] duration-300"
+            ref={floatingPromptRef}
+            onSend={handleSendPrompt}
+            onCancel={handleCancelExecution}
+            isLoading={isLoading}
+            disabled={!projectPath}
+            projectPath={projectPath}
+            sessionId={effectiveSession?.id}         // 🆕 传递会话 ID
+            projectId={effectiveSession?.project_id} // 🆕 传递项目 ID
+            sessionModel={session?.model}
+            getConversationContext={getConversationContext}
+            messages={messages}                      // 🆕 传递完整消息列表
+            isPlanMode={isPlanMode}
+            onTogglePlanMode={handleTogglePlanMode}
+            sessionCost={formatCost(costStats.totalCost)}
+            sessionStats={costStats}
+            hasMessages={messages.length > 0}
+            session={effectiveSession || undefined}  // 🆕 传递完整会话信息用于导出
+            executionEngineConfig={executionEngineConfig}              // 🆕 Codex 集成
+            onExecutionEngineConfigChange={setExecutionEngineConfig}   // 🆕 Codex 集成
+          />
 
         </ErrorBoundary>
 

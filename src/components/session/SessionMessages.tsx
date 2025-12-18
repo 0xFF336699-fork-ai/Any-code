@@ -211,12 +211,14 @@ export const SessionMessages = forwardRef<SessionMessagesRef, SessionMessagesPro
   }));
 
   return (
+    // ✅ 重构布局: 移除固定 paddingBottom，因为输入框不再使用 fixed 定位
+    // 消息区域现在是 Flex 容器的一部分，自然与输入区域分离
     <div
       ref={parentRef}
       className="flex-1 overflow-y-auto relative"
       style={{
-        paddingBottom: 'calc(240px + env(safe-area-inset-bottom))', // 增加底部空间，避免与动态高度的输入框重叠
         paddingTop: '20px',
+        paddingBottom: '24px', // 底部留一点间距即可
       }}
     >
       <div
@@ -283,13 +285,12 @@ export const SessionMessages = forwardRef<SessionMessagesRef, SessionMessagesPro
         onCancel={onCancel}
       />
 
-      {/* Error indicator */}
+      {/* Error indicator - 移除固定 marginBottom，因为输入框不再是 fixed 定位 */}
       {error && (
         <motion.div
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
-          className="rounded-lg border border-destructive/50 bg-destructive/10 p-4 text-sm text-destructive w-full max-w-5xl mx-auto"
-          style={{ marginBottom: 'calc(80px + env(safe-area-inset-bottom))' }}
+          className="rounded-lg border border-destructive/50 bg-destructive/10 p-4 text-sm text-destructive w-full max-w-5xl mx-auto mb-4"
         >
           {error}
         </motion.div>
