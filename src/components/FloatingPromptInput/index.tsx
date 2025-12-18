@@ -9,6 +9,7 @@ import { useFileSelection } from "./hooks/useFileSelection";
 import { usePromptEnhancement } from "./hooks/usePromptEnhancement";
 import { usePromptSuggestion } from "./hooks/usePromptSuggestion";
 import { useDraftPersistence } from "./hooks/useDraftPersistence";
+import { useSlashCommandMenu } from "./hooks/useSlashCommandMenu";
 import { api } from "@/lib/api";
 import { getEnabledProviders } from "@/lib/promptEnhancementService";
 import { inputReducer, initialState } from "./reducer";
@@ -265,6 +266,24 @@ const FloatingPromptInputInner = (
     debounceMs: 600,
   });
 
+  // 🆕 斜杠命令菜单 Hook
+  const {
+    isOpen: showSlashCommandMenu,
+    query: slashCommandQuery,
+    selectedIndex: slashCommandSelectedIndex,
+    setSelectedIndex: setSlashCommandSelectedIndex,
+    selectCommand: handleSlashCommandSelect,
+    closeMenu: closeSlashCommandMenu,
+    handleKeyDown: handleSlashCommandKeyDown,
+  } = useSlashCommandMenu({
+    prompt: state.prompt,
+    onCommandSelect: (command) => {
+      // 替换当前输入为选中的命令
+      dispatch({ type: "SET_PROMPT", payload: command });
+    },
+    disabled: state.isExpanded || disabled,
+  });
+
   // Persist project context switch
   useEffect(() => {
     try {
@@ -463,6 +482,11 @@ const FloatingPromptInputInner = (
   };
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
+    // 🆕 优先处理斜杠命令菜单的键盘事件
+    if (handleSlashCommandKeyDown(e)) {
+      return;
+    }
+
     if (showFilePicker && e.key === 'Escape') {
       e.preventDefault();
       setShowFilePicker(false);
@@ -470,8 +494,8 @@ const FloatingPromptInputInner = (
       return;
     }
 
-    // 🆕 Tab 键接受建议
-    if (e.key === 'Tab' && !e.shiftKey && suggestion && !showFilePicker) {
+    // 🆕 Tab 键接受建议 (斜杠命令菜单未打开时)
+    if (e.key === 'Tab' && !e.shiftKey && suggestion && !showFilePicker && !showSlashCommandMenu) {
       e.preventDefault();
       const accepted = acceptSuggestion();
       if (accepted) {
@@ -591,6 +615,13 @@ const FloatingPromptInputInner = (
             suggestion={suggestion}
             isSuggestionLoading={isSuggestionLoading}
             enableSuggestion={enablePromptSuggestion}
+            // 🆕 斜杠命令菜单
+            showSlashCommandMenu={showSlashCommandMenu}
+            slashCommandQuery={slashCommandQuery}
+            slashCommandSelectedIndex={slashCommandSelectedIndex}
+            onSlashCommandSelect={handleSlashCommandSelect}
+            onSlashCommandMenuClose={closeSlashCommandMenu}
+            onSlashCommandSelectedIndexChange={setSlashCommandSelectedIndex}
           />
 
           <ControlBar

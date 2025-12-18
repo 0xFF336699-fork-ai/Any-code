@@ -7,7 +7,9 @@ import { cn } from "@/lib/utils";
 import { AnimatePresence } from "framer-motion";
 import { FilePicker } from "../FilePicker";
 import { SuggestionOverlay } from "./components/SuggestionOverlay";
+import { SlashCommandMenu } from "./SlashCommandMenu";
 import type { PromptSuggestion } from "./hooks/usePromptSuggestion";
+import type { SlashCommand } from "./slashCommands";
 
 interface InputAreaProps {
   prompt: string;
@@ -34,6 +36,21 @@ interface InputAreaProps {
   isSuggestionLoading?: boolean;
   /** 是否启用 Prompt Suggestions（启用时隐藏 placeholder） */
   enableSuggestion?: boolean;
+  // 🆕 斜杠命令菜单
+  /** 是否显示斜杠命令菜单 */
+  showSlashCommandMenu?: boolean;
+  /** 斜杠命令搜索查询 */
+  slashCommandQuery?: string;
+  /** 斜杠命令菜单选中索引 */
+  slashCommandSelectedIndex?: number;
+  /** 选择斜杠命令时的回调 */
+  onSlashCommandSelect?: (command: SlashCommand) => void;
+  /** 关闭斜杠命令菜单 */
+  onSlashCommandMenuClose?: () => void;
+  /** 更新选中索引 */
+  onSlashCommandSelectedIndexChange?: (index: number) => void;
+  /** 自定义斜杠命令 */
+  customSlashCommands?: SlashCommand[];
 }
 
 export const InputArea = forwardRef<HTMLTextAreaElement, InputAreaProps>(({
@@ -58,6 +75,14 @@ export const InputArea = forwardRef<HTMLTextAreaElement, InputAreaProps>(({
   suggestion,
   isSuggestionLoading,
   enableSuggestion = true,
+  // 🆕 斜杠命令菜单
+  showSlashCommandMenu = false,
+  slashCommandQuery = '',
+  slashCommandSelectedIndex = 0,
+  onSlashCommandSelect,
+  onSlashCommandMenuClose,
+  onSlashCommandSelectedIndexChange,
+  customSlashCommands = [],
 }, ref) => {
   const { t } = useTranslation();
 
@@ -130,6 +155,20 @@ export const InputArea = forwardRef<HTMLTextAreaElement, InputAreaProps>(({
           />
         )}
       </AnimatePresence>
+
+      {/* 🆕 斜杠命令菜单 */}
+      {onSlashCommandSelect && onSlashCommandMenuClose && onSlashCommandSelectedIndexChange && (
+        <SlashCommandMenu
+          isOpen={showSlashCommandMenu}
+          query={slashCommandQuery}
+          selectedIndex={slashCommandSelectedIndex}
+          onSelect={onSlashCommandSelect}
+          onClose={onSlashCommandMenuClose}
+          onSelectedIndexChange={onSlashCommandSelectedIndexChange}
+          customCommands={customSlashCommands}
+          nonInteractiveOnly={true}
+        />
+      )}
     </div>
   );
 });
