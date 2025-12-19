@@ -16,10 +16,11 @@ use super::parser::{
     convert_raw_to_unified_message, convert_to_unified_message, parse_gemini_line,
     parse_gemini_line_flexible,
 };
-use super::types::{GeminiExecutionOptions, GeminiInstallStatus, GeminiProcessState, GeminiSessionDetail, TokenUsage};
+use super::types::{GeminiExecutionOptions, GeminiInstallStatus, GeminiProcessHandle, GeminiProcessState, GeminiSessionDetail, TokenUsage};
 use crate::claude_binary::detect_binary_for_tool;
 use crate::commands::claude::apply_no_window_async;
 use crate::commands::wsl_utils;
+use crate::process::JobObject;
 
 // ============================================================================
 // Slash Command Detection
@@ -554,12 +555,17 @@ pub async fn cancel_gemini(
 
     if let Some(sid) = session_id {
         // Cancel specific session
-        if let Some(mut child) = processes.remove(&sid) {
-            child
+        if let Some(mut handle) = processes.remove(&sid) {
+            // Kill the process - JobObject will automatically terminate all child processes when dropped
+            handle
+                .child
                 .kill()
                 .await
                 .map_err(|e| format!("Failed to kill process: {}", e))?;
-            log::info!("Killed Gemini process for session: {}", sid);
+            log::info!("Killed Gemini process for session: {} (PID: {})", sid, handle.pid);
+
+            // JobObject is dropped here, killing all child processes (MCP servers, node.exe, etc.)
+            drop(handle.job_object);
 
             // Emit cancellation event
             let _ = app_handle.emit(&format!("gemini-cancelled:{}", sid), true);
@@ -569,12 +575,14 @@ pub async fn cancel_gemini(
         }
     } else {
         // Cancel all processes
-        for (sid, mut child) in processes.drain() {
-            if let Err(e) = child.kill().await {
+        for (sid, mut handle) in processes.drain() {
+            if let Err(e) = handle.child.kill().await {
                 log::error!("Failed to kill process for session {}: {}", sid, e);
             } else {
-                log::info!("Killed Gemini process for session: {}", sid);
+                log::info!("Killed Gemini process for session: {} (PID: {})", sid, handle.pid);
             }
+            // JobObject is dropped here, killing all child processes
+            drop(handle.job_object);
         }
         let _ = app_handle.emit("gemini-cancelled", true);
     }
@@ -662,14 +670,48 @@ async fn execute_gemini_process(
     let stdout = child.stdout.take().ok_or("Failed to capture stdout")?;
     let stderr = child.stderr.take().ok_or("Failed to capture stderr")?;
 
+    // Get process PID for proper cleanup (needed to kill child processes)
+    let pid = child
+        .id()
+        .ok_or("Failed to get process ID - process may have already exited")?;
+    log::info!("[Gemini] Spawned process with PID: {}", pid);
+
+    // Windows robustness: assign the process to a Job Object so *all* descendants are cleaned up
+    // even if Gemini CLI spawns detached node.exe processes (MCP servers).
+    #[cfg(windows)]
+    let job_object = match JobObject::create() {
+        Ok(job) => match job.assign_process_by_pid(pid) {
+            Ok(_) => {
+                log::info!("[Gemini] Assigned PID {} to Job Object for cleanup", pid);
+                Some(job)
+            }
+            Err(e) => {
+                log::warn!("[Gemini] Failed to assign PID {} to Job Object: {}", pid, e);
+                None
+            }
+        },
+        Err(e) => {
+            log::warn!("[Gemini] Failed to create Job Object: {}", e);
+            None
+        }
+    };
+
+    #[cfg(not(windows))]
+    let job_object: Option<JobObject> = None;
+
     // Generate session ID
     let session_id = format!("gemini-{}", uuid::Uuid::new_v4());
 
-    // Store process in state
+    // Store process in state with PID and JobObject for proper cleanup
     let state: tauri::State<'_, GeminiProcessState> = app_handle.state();
     {
         let mut processes = state.processes.lock().await;
-        processes.insert(session_id.clone(), child);
+        let handle = GeminiProcessHandle {
+            child,
+            pid,
+            job_object,
+        };
+        processes.insert(session_id.clone(), handle);
 
         let mut last_session = state.last_session_id.lock().await;
         *last_session = Some(session_id.clone());
@@ -985,8 +1027,12 @@ async fn execute_gemini_process(
         // Try to wait for process with timeout
         let wait_result = tokio::time::timeout(timeout_duration, async {
             let mut processes = processes_complete.lock().await;
-            if let Some(mut child) = processes.remove(&session_id_complete) {
-                child.wait().await
+            if let Some(mut handle) = processes.remove(&session_id_complete) {
+                let result = handle.child.wait().await;
+                // JobObject is dropped here when handle goes out of scope,
+                // ensuring all child processes (MCP servers, node.exe, etc.) are terminated
+                log::debug!("[Gemini] Process handle dropped, JobObject cleaning up child processes for PID: {}", handle.pid);
+                result
             } else {
                 Err(std::io::Error::new(
                     std::io::ErrorKind::NotFound,
@@ -1019,10 +1065,12 @@ async fn execute_gemini_process(
                 );
                 // Try to kill the hung process
                 let mut processes = processes_complete.lock().await;
-                if let Some(mut child) = processes.remove(&session_id_complete) {
-                    if let Err(e) = child.kill().await {
+                if let Some(mut handle) = processes.remove(&session_id_complete) {
+                    if let Err(e) = handle.child.kill().await {
                         log::error!("[Gemini] Failed to kill hung process: {}", e);
                     }
+                    // JobObject is dropped here, killing all child processes
+                    log::info!("[Gemini] Force-dropped JobObject for hung process PID: {}", handle.pid);
                 }
                 (false, None)
             }

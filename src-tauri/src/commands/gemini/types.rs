@@ -334,9 +334,19 @@ use std::sync::Arc;
 use tokio::process::Child;
 use tokio::sync::Mutex;
 
+use crate::process::JobObject;
+
+/// Gemini process handle with PID for proper cleanup
+pub struct GeminiProcessHandle {
+    pub child: Child,
+    pub pid: u32,
+    /// Windows Job Object (kills all child processes when dropped); no-op on non-Windows.
+    pub job_object: Option<JobObject>,
+}
+
 /// Global state to track Gemini processes
 pub struct GeminiProcessState {
-    pub processes: Arc<Mutex<HashMap<String, Child>>>,
+    pub processes: Arc<Mutex<HashMap<String, GeminiProcessHandle>>>,
     pub last_session_id: Arc<Mutex<Option<String>>>,
 }
 
