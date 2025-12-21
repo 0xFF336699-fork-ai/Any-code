@@ -581,6 +581,7 @@ pub async fn mark_prompt_completed(
     project_id: String,
     project_path: String,
     prompt_index: usize,
+    prompt_text: Option<String>,
 ) -> Result<(), String> {
     log::info!("Marking prompt #{} completed", prompt_index);
 
@@ -597,9 +598,6 @@ pub async fn mark_prompt_completed(
 
     // Auto-commit any changes made by AI
     // This ensures each prompt has a distinct git state
-    let prompt_text = extract_prompts_from_jsonl(&session_id, &project_id)
-        .ok()
-        .and_then(|prompts| prompts.get(prompt_index).map(|prompt| prompt.text.clone()));
     let commit_message =
         build_prompt_commit_message("[Claude Code]", prompt_text.as_deref(), prompt_index);
     match simple_git::git_commit_changes(&project_path, &commit_message) {

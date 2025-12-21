@@ -33,11 +33,13 @@ declare global {
       sessionId: string;
       projectPath: string;
       promptIndex: number;
+      promptText: string;
     };
     __geminiPendingPrompt?: {
       sessionId: string;
       projectPath: string;
       promptIndex: number;
+      promptText: string;
     };
     __geminiPendingSession?: {
       sessionId: string;
@@ -428,7 +430,8 @@ export function usePromptExecution(config: UsePromptExecutionConfig): UsePromptE
                       window.__codexPendingPrompt = {
                         sessionId: codexThreadId,
                         projectPath,
-                        promptIndex: idx
+                        promptIndex: idx,
+                        promptText: codexPendingInfo.promptText
                       };
                     })
                     .catch(err => {
@@ -439,7 +442,8 @@ export function usePromptExecution(config: UsePromptExecutionConfig): UsePromptE
                   window.__codexPendingPrompt = {
                     sessionId: codexThreadId,
                     projectPath,
-                    promptIndex: codexPendingInfo.promptIndex
+                    promptIndex: codexPendingInfo.promptIndex,
+                    promptText: codexPendingInfo.promptText
                   };
                 }
               }
@@ -482,7 +486,8 @@ export function usePromptExecution(config: UsePromptExecutionConfig): UsePromptE
                 await api.recordCodexPromptCompleted(
                   pendingPrompt.sessionId,
                   pendingPrompt.projectPath,
-                  pendingPrompt.promptIndex
+                  pendingPrompt.promptIndex,
+                  pendingPrompt.promptText
                 );
               } catch (err) {
                 console.warn('[usePromptExecution] Failed to record Codex prompt completion:', err);
@@ -908,7 +913,8 @@ export function usePromptExecution(config: UsePromptExecutionConfig): UsePromptE
                 await api.recordGeminiPromptCompleted(
                   pendingPrompt.sessionId,
                   pendingPrompt.projectPath,
-                  pendingPrompt.promptIndex
+                  pendingPrompt.promptIndex,
+                  pendingPrompt.promptText
                 );
               } catch (err) {
                 console.warn('[usePromptExecution] Failed to record Gemini prompt completion:', err);
@@ -984,7 +990,8 @@ export function usePromptExecution(config: UsePromptExecutionConfig): UsePromptE
                   window.__geminiPendingPrompt = {
                     sessionId: realCliSessionId,
                     projectPath,
-                    promptIndex: idx
+                    promptIndex: idx,
+                    promptText: geminiPendingInfo.promptText
                   };
                 })
                 .catch(err => {
@@ -1213,7 +1220,8 @@ export function usePromptExecution(config: UsePromptExecutionConfig): UsePromptE
                 sessionId,
                 projectId,
                 projectPath,
-                recordedPromptIndex
+                recordedPromptIndex,
+                prompt
               ).then(() => {
               }).catch(err => {
                 console.error('[Prompt Revert] Failed to mark completed:', err);
@@ -1577,7 +1585,8 @@ export function usePromptExecution(config: UsePromptExecutionConfig): UsePromptE
           window.__codexPendingPrompt = {
             sessionId: pendingSessionId,
             projectPath,
-            promptIndex: pendingIndex
+            promptIndex: pendingIndex,
+            promptText: prompt
           };
         }
       } else if (executionEngine === 'gemini') {
@@ -1615,7 +1624,8 @@ export function usePromptExecution(config: UsePromptExecutionConfig): UsePromptE
           window.__geminiPendingPrompt = {
             sessionId: pendingSessionId,
             projectPath,
-            promptIndex: pendingIndex
+            promptIndex: pendingIndex,
+            promptText: prompt
           };
         }
 

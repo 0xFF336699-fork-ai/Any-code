@@ -564,6 +564,7 @@ pub async fn record_codex_prompt_completed(
     session_id: String,
     project_path: String,
     prompt_index: usize,
+    prompt_text: Option<String>,
 ) -> Result<(), String> {
     log::info!(
         "[Codex Record] Recording prompt #{} completed for session: {}",
@@ -581,9 +582,6 @@ pub async fn record_codex_prompt_completed(
     }
 
     // Auto-commit any changes made by AI
-    let prompt_text = extract_codex_prompts(&session_id)
-        .ok()
-        .and_then(|prompts| prompts.get(prompt_index).map(|prompt| prompt.text.clone()));
     let commit_message = build_prompt_commit_message("[Codex]", prompt_text.as_deref(), prompt_index);
     match simple_git::git_commit_changes(&project_path, &commit_message) {
         Ok(true) => {

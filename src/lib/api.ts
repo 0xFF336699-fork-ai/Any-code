@@ -2695,14 +2695,21 @@ export const api = {
     sessionId: string,
     projectId: string,
     projectPath: string,
-    promptIndex: number
+    promptIndex: number,
+    promptText?: string
   ): Promise<void> {
     try {
-      return await invoke<void>("mark_prompt_completed", {
+      const payload: Record<string, unknown> = {
         sessionId,
         projectId,
         projectPath,
         promptIndex
+      };
+      if (promptText !== undefined) {
+        payload.promptText = promptText;
+      }
+      return await invoke<void>("mark_prompt_completed", {
+        ...payload
       });
     } catch (error) {
       console.error("Failed to mark prompt completed:", error);
@@ -3297,13 +3304,20 @@ export const api = {
   async recordCodexPromptCompleted(
     sessionId: string,
     projectPath: string,
-    promptIndex: number
+    promptIndex: number,
+    promptText?: string
   ): Promise<void> {
     try {
-      await invoke("record_codex_prompt_completed", {
+      const payload: Record<string, unknown> = {
         sessionId,
         projectPath,
         promptIndex
+      };
+      if (promptText !== undefined) {
+        payload.promptText = promptText;
+      }
+      await invoke("record_codex_prompt_completed", {
+        ...payload
       });
     } catch (error) {
       console.error("Failed to record Codex prompt completed:", error);
@@ -3414,13 +3428,20 @@ export const api = {
   async recordGeminiPromptCompleted(
     sessionId: string,
     projectPath: string,
-    promptIndex: number
+    promptIndex: number,
+    promptText?: string
   ): Promise<void> {
     try {
-      await invoke("record_gemini_prompt_completed", {
+      const payload: Record<string, unknown> = {
         sessionId,
         projectPath,
         promptIndex
+      };
+      if (promptText !== undefined) {
+        payload.promptText = promptText;
+      }
+      await invoke("record_gemini_prompt_completed", {
+        ...payload
       });
     } catch (error) {
       console.error("Failed to record Gemini prompt completed:", error);
