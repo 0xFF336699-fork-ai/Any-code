@@ -27,6 +27,7 @@ import { convertGeminiSessionDetailToClaudeMessages } from '@/lib/geminiConverte
 
 /**
  * Hook 配置
+ * 与 useSessionLifecycle 完全兼容
  */
 interface UseSessionStreamConfig {
   /**
@@ -40,6 +41,21 @@ interface UseSessionStreamConfig {
   isMountedRef: React.MutableRefObject<boolean>;
 
   /**
+   * 监听状态 ref（外部管理，用于其他 hooks）
+   */
+  isListeningRef: React.MutableRefObject<boolean>;
+
+  /**
+   * 活跃会话状态 ref（外部管理，用于其他 hooks）
+   */
+  hasActiveSessionRef: React.MutableRefObject<boolean>;
+
+  /**
+   * 取消监听函数列表 ref（外部管理，用于清理）
+   */
+  unlistenRefs: React.MutableRefObject<UnlistenFn[]>;
+
+  /**
    * 状态更新回调
    */
   setIsLoading: (loading: boolean) => void;
@@ -48,6 +64,11 @@ interface UseSessionStreamConfig {
   setRawJsonlOutput: React.Dispatch<React.SetStateAction<string[]>>;
   setClaudeSessionId: (sessionId: string) => void;
   setCodexRateLimits?: React.Dispatch<React.SetStateAction<CodexRateLimits | null>>;
+
+  /**
+   * 翻译初始化（兼容 useSessionLifecycle，当前禁用）
+   */
+  initializeProgressiveTranslation?: (messages: ClaudeStreamMessage[]) => Promise<void>;
 
   /**
    * 翻译处理
@@ -92,6 +113,9 @@ export function useSessionStream(config: UseSessionStreamConfig): UseSessionStre
   const {
     session,
     isMountedRef,
+    isListeningRef,
+    hasActiveSessionRef,
+    unlistenRefs,
     setIsLoading,
     setError,
     setMessages,
@@ -102,10 +126,8 @@ export function useSessionStream(config: UseSessionStreamConfig): UseSessionStre
     onSessionNotFound,
   } = config;
 
-  // Refs
+  // Internal refs
   const messageQueueRef = useRef<AsyncQueue<ClaudeStreamMessage> | null>(null);
-  const unlistenRefs = useRef<UnlistenFn[]>([]);
-  const isListeningRef = useRef(false);
   const loadingSessionIdRef = useRef<string | null>(null);
 
   /**
@@ -117,21 +139,6 @@ export function useSessionStream(config: UseSessionStreamConfig): UseSessionStre
     if (engine === 'gemini') return 'gemini';
     return 'claude';
   }, [session]);
-
-  /**
-   * 清理监听器
-   */
-  const cleanupListeners = useCallback(() => {
-    for (const unlisten of unlistenRefs.current) {
-      try {
-        unlisten();
-      } catch (e) {
-        console.warn('[useSessionStream] Failed to unlisten:', e);
-      }
-    }
-    unlistenRefs.current = [];
-    isListeningRef.current = false;
-  }, []);
 
   /**
    * 处理消息
@@ -342,28 +349,38 @@ export function useSessionStream(config: UseSessionStreamConfig): UseSessionStre
    * 重新连接到会话
    */
   const reconnectToSession = useCallback(async (sessionId: string) => {
+    // 防止重复监听
     if (isListeningRef.current) return;
 
-    cleanupListeners();
+    // 清理之前的监听器
+    unlistenRefs.current.forEach(u => u && typeof u === 'function' && u());
+    unlistenRefs.current = [];
+
+    // 设置会话 ID
     setClaudeSessionId(sessionId);
+
+    // 标记监听状态
     isListeningRef.current = true;
 
     const engine = getEngine();
     const eventPrefix = engine === 'codex' ? 'codex' : engine === 'gemini' ? 'gemini' : 'claude';
 
-    // 创建消息队列
+    // 创建消息队列（新架构核心）
     messageQueueRef.current = new AsyncQueue<ClaudeStreamMessage>();
 
-    // 监听输出
+    // 监听输出（使用新的 Converter 注册中心）
     const outputUnlisten = await listen<string>(
       `${eventPrefix}-output:${sessionId}`,
       async (event) => {
         try {
           if (!isMountedRef.current) return;
 
+          // 使用统一的转换器注册中心
           const result = converterRegistry.convertLine(event.payload, engine);
           if (result.message) {
+            // 加入消息队列
             messageQueueRef.current?.enqueue(result.message);
+            // 处理消息（含翻译）
             await processMessage(result.message, event.payload);
           }
         } catch (err) {
@@ -391,31 +408,42 @@ export function useSessionStream(config: UseSessionStreamConfig): UseSessionStre
       async () => {
         if (isMountedRef.current) {
           setIsLoading(false);
+          // 结束消息队列
           messageQueueRef.current?.done();
-          cleanupListeners();
+          // 重置状态
+          hasActiveSessionRef.current = false;
+          isListeningRef.current = false;
+          // 清理监听器
+          unlistenRefs.current.forEach(u => u && typeof u === 'function' && u());
+          unlistenRefs.current = [];
         }
       }
     );
     unlistenRefs.current.push(completeUnlisten);
 
+    // 更新状态
     setIsLoading(true);
+    hasActiveSessionRef.current = true;
   }, [
     isMountedRef,
+    isListeningRef,
+    hasActiveSessionRef,
+    unlistenRefs,
     getEngine,
     setClaudeSessionId,
     setError,
     setIsLoading,
     processMessage,
-    cleanupListeners,
   ]);
 
-  // 清理
+  // 清理（组件卸载时）
   useEffect(() => {
     return () => {
-      cleanupListeners();
       messageQueueRef.current?.done();
+      // 不在这里清理监听器，由组件自己清理
+      // 因为 unlistenRefs 是外部传入的
     };
-  }, [cleanupListeners]);
+  }, []);
 
   return {
     loadSessionHistory,

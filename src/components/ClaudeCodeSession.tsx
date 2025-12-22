@@ -24,7 +24,7 @@ import { useGroupedMessages } from '@/hooks/useGroupedMessages';
 import { useKeyboardShortcuts } from '@/hooks/useKeyboardShortcuts';
 import { useSmartAutoScroll } from '@/hooks/useSmartAutoScroll';
 import { useMessageTranslation } from '@/hooks/useMessageTranslation';
-import { useSessionLifecycle } from '@/hooks/useSessionLifecycle';
+import { useSessionStream } from '@/hooks/useSessionStream';
 import { usePromptExecution } from '@/hooks/usePromptExecution';
 import { MessagesProvider, useMessagesContext } from '@/contexts/MessagesContext';
 import { SessionProvider } from '@/contexts/SessionContext';
@@ -301,12 +301,13 @@ const ClaudeCodeSessionInner: React.FC<ClaudeCodeSessionProps> = ({
     setIsFirstPrompt(true);
   }, []);
 
-  // ✅ Refactored: Use custom Hook for session lifecycle (AFTER refs and translation Hook are declared)
+  // ✅ 新架构: 使用 useSessionStream（基于 AsyncQueue + ConverterRegistry）
   const {
     loadSessionHistory,
     checkForActiveSession,
     // reconnectToSession removed - listeners now persist across tab switches
-  } = useSessionLifecycle({
+    // messageQueue - 新增：消息队列，支持 for await...of 消费
+  } = useSessionStream({
     session,
     isMountedRef,
     isListeningRef,
