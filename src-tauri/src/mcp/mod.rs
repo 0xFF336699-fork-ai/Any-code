@@ -19,6 +19,7 @@
 mod claude;
 mod codex;
 mod gemini;
+pub mod registry;
 mod validation;
 
 use serde::{Deserialize, Serialize};

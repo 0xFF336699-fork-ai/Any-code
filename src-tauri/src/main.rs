@@ -46,7 +46,7 @@ use commands::mcp::{
     mcp_get_unified_servers,
     // 多引擎独立隔离控制 API（新设计）
     mcp_get_engine_servers, mcp_upsert_engine_server, mcp_delete_engine_server,
-    mcp_toggle_engine_server,
+    mcp_toggle_engine_server, mcp_get_engine_servers_with_status,
 };
 use commands::storage::{init_database, AgentDb};
 
@@ -377,6 +377,7 @@ fn main() {
             mcp_upsert_engine_server,
             mcp_delete_engine_server,
             mcp_toggle_engine_server,
+            mcp_get_engine_servers_with_status,
             // Storage Management
             storage_list_tables,
             storage_read_table,

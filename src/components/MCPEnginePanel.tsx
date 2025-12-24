@@ -18,7 +18,7 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Switch } from "@/components/ui/switch";
-import { api, type MCPServerSpec } from "@/lib/api";
+import { api, type MCPServerSpec, type McpServerWithStatus } from "@/lib/api";
 import { copyTextToClipboard } from "@/lib/clipboard";
 import { MCPServerDialog } from "./MCPServerDialog";
 
@@ -45,11 +45,8 @@ interface MCPEnginePanelProps {
   className?: string;
 }
 
-interface MCPServerItem {
-  id: string;
-  spec: MCPServerSpec;
-  enabled: boolean; // 启用状态（在配置文件中存在即为 enabled=true）
-}
+// 使用从 api.ts 导入的 McpServerWithStatus 类型
+type MCPServerItem = McpServerWithStatus;
 
 /**
  * 单个引擎的 MCP 管理面板
@@ -81,13 +78,8 @@ export const MCPEnginePanel: React.FC<MCPEnginePanelProps> = ({
   const loadServers = async () => {
     try {
       setLoading(true);
-      const serversMap = await api.mcpGetEngineServers(engine);
-
-      // 转换为数组格式，配置文件中存在即为 enabled=true
-      const serversList: MCPServerItem[] = Object.entries(serversMap).map(
-        ([id, spec]) => ({ id, spec, enabled: true })
-      );
-
+      // 使用新的 API 获取包含禁用服务器的列表
+      const serversList = await api.mcpGetEngineServersWithStatus(engine);
       setServers(serversList);
     } catch (error) {
       console.error(`Failed to load ${engine} MCP servers:`, error);

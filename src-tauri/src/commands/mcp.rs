@@ -968,13 +968,17 @@ pub async fn mcp_upsert_engine_server(
     // 验证服务器规范
     crate::mcp::validate_server_spec(&server_spec)?;
 
+    // 保存到注册表（启用状态）
+    crate::mcp::registry::upsert_server(&id, &id, &server_spec, true)?;
+
+    // 同步到引擎配置文件
     let app_type = crate::mcp::AppType::from_str(&engine)?;
     crate::mcp::sync_server_to_app(&id, &server_spec, &app_type)?;
 
     Ok(format!("成功在 {} 引擎中配置 MCP 服务器 '{}'", engine, id))
 }
 
-/// 从指定引擎中删除 MCP 服务器
+/// 从指定引擎中删除 MCP 服务器（永久删除，同时从注册表中移除）
 ///
 /// # 参数
 /// - `engine`: 引擎名称（"claude" | "codex" | "gemini"）
@@ -983,8 +987,12 @@ pub async fn mcp_upsert_engine_server(
 pub async fn mcp_delete_engine_server(engine: String, id: String) -> Result<String, String> {
     info!("从 {} 引擎中删除 MCP 服务器: {}", engine, id);
 
+    // 从引擎配置文件中删除
     let app_type = crate::mcp::AppType::from_str(&engine)?;
     crate::mcp::remove_server_from_app(&id, &app_type)?;
+
+    // 从注册表中删除（永久删除）
+    crate::mcp::registry::remove_server(&id)?;
 
     Ok(format!(
         "成功从 {} 引擎中删除 MCP 服务器 '{}'",
@@ -1002,7 +1010,7 @@ pub async fn mcp_delete_engine_server(engine: String, id: String) -> Result<Stri
 ///
 /// # 说明
 /// - 当 enabled=true 时，将服务器添加到引擎配置文件
-/// - 当 enabled=false 时，从引擎配置文件中移除服务器
+/// - 当 enabled=false 时，从引擎配置文件中移除服务器（但保留在注册表中）
 #[tauri::command]
 pub async fn mcp_toggle_engine_server(
     engine: String,
@@ -1017,6 +1025,9 @@ pub async fn mcp_toggle_engine_server(
 
     let app_type = crate::mcp::AppType::from_str(&engine)?;
 
+    // 始终将服务器保存到注册表（确保禁用后不会丢失）
+    crate::mcp::registry::upsert_server(&id, &id, &server_spec, enabled)?;
+
     if enabled {
         // 启用：添加到配置文件
         crate::mcp::validate_server_spec(&server_spec)?;
@@ -1026,11 +1037,43 @@ pub async fn mcp_toggle_engine_server(
             engine, id
         ))
     } else {
-        // 禁用：从配置文件中移除
+        // 禁用：从配置文件中移除（但保留在注册表中）
         crate::mcp::remove_server_from_app(&id, &app_type)?;
         Ok(format!(
             "已在 {} 引擎中禁用 MCP 服务器 '{}'",
             engine, id
         ))
     }
+}
+
+/// 带启用状态的 MCP 服务器条目
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct McpServerWithStatus {
+    /// 服务器 ID
+    pub id: String,
+    /// 服务器配置
+    pub spec: serde_json::Value,
+    /// 是否启用
+    pub enabled: bool,
+}
+
+/// 获取指定引擎的 MCP 服务器列表（包含禁用的服务器）
+///
+/// # 参数
+/// - `engine`: 引擎名称（"claude" | "codex" | "gemini"）
+///
+/// # 返回
+/// - Ok(Vec<McpServerWithStatus>): 该引擎的 MCP 服务器列表（包含启用状态）
+#[tauri::command]
+pub async fn mcp_get_engine_servers_with_status(
+    engine: String,
+) -> Result<Vec<McpServerWithStatus>, String> {
+    info!("获取 {} 引擎的 MCP 服务器列表（含状态）", engine);
+
+    let servers = crate::mcp::registry::get_engine_servers_with_status(&engine)?;
+
+    Ok(servers
+        .into_iter()
+        .map(|(id, spec, enabled)| McpServerWithStatus { id, spec, enabled })
+        .collect())
 }

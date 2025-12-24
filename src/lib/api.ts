@@ -489,6 +489,18 @@ export interface McpStatus {
   server_count: number;
 }
 
+/**
+ * 带启用状态的 MCP 服务器条目
+ */
+export interface McpServerWithStatus {
+  /** 服务器 ID */
+  id: string;
+  /** 服务器配置 */
+  spec: MCPServerSpec;
+  /** 是否启用 */
+  enabled: boolean;
+}
+
 // ============================================================================
 // 旧版 MCP 类型（兼容性保留，后续可删除）
 // ============================================================================
@@ -1557,6 +1569,30 @@ export const api = {
       });
     } catch (error) {
       console.error(`Failed to toggle ${engine} MCP server:`, error);
+      throw error;
+    }
+  },
+
+  /**
+   * 带启用状态的 MCP 服务器条目
+   */
+  // McpServerWithStatus 类型定义在下方
+
+  /**
+   * 获取指定引擎的 MCP 服务器列表（包含禁用的服务器）
+   *
+   * @param engine 引擎名称（"claude" | "codex" | "gemini"）
+   * @returns 该引擎的 MCP 服务器列表（包含启用状态）
+   */
+  async mcpGetEngineServersWithStatus(
+    engine: "claude" | "codex" | "gemini"
+  ): Promise<McpServerWithStatus[]> {
+    try {
+      return await invoke<McpServerWithStatus[]>("mcp_get_engine_servers_with_status", {
+        engine,
+      });
+    } catch (error) {
+      console.error(`Failed to get ${engine} MCP servers with status:`, error);
       throw error;
     }
   },
