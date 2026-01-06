@@ -64,6 +64,7 @@ export const TabManager: React.FC<TabManagerProps> = ({
     reorderTabs, // 🔧 NEW: 拖拽排序
     detachTab,   // 🆕 多窗口支持
     createNewTabAsWindow, // 🆕 直接创建为独立窗口
+    updateTabTitle, // 🔧 NEW: 重命名
   } = useTabs();
 
   // 🔧 NEW: 启用会话状态同步
@@ -72,10 +73,24 @@ export const TabManager: React.FC<TabManagerProps> = ({
   const [draggedTab, setDraggedTab] = useState<string | null>(null);
   const [dragOverIndex, setDragOverIndex] = useState<number | null>(null); // 🔧 NEW: 拖拽悬停的位置
   const [tabToClose, setTabToClose] = useState<string | null>(null); // 🔧 NEW: 待关闭的标签页ID（需要确认）
+
+  // 🔧 NEW: 重命名状态
+  const [editingTabId, setEditingTabId] = useState<string | null>(null);
+  const [editingTitle, setEditingTitle] = useState("");
+  const editInputRef = useRef<HTMLInputElement>(null);
+
   const tabsContainerRef = useRef<HTMLDivElement>(null);
 
   // ✨ Phase 3: Simple initialization flag (no complex state machine)
   const initializedRef = useRef(false);
+
+  // 🔧 NEW: 自动聚焦输入框
+  useEffect(() => {
+    if (editingTabId && editInputRef.current) {
+      editInputRef.current.focus();
+      editInputRef.current.select();
+    }
+  }, [editingTabId]);
 
   // 拖拽处理
   const handleTabDragStart = useCallback((tabId: string) => {
@@ -99,7 +114,7 @@ export const TabManager: React.FC<TabManagerProps> = ({
 
     if (!draggedTab) return;
 
-    // 查找被拖拽标签页的索���
+    // 查找被拖拽标签页的索引
     const fromIndex = tabs.findIndex(t => t.id === draggedTab);
     if (fromIndex === -1 || fromIndex === targetIndex) {
       setDraggedTab(null);
@@ -155,6 +170,29 @@ export const TabManager: React.FC<TabManagerProps> = ({
       console.error('[TabManager] Failed to create new session window:', error);
     }
   }, [createNewTabAsWindow]);
+
+  // 🔧 NEW: 重命名处理逻辑
+  const handleTabDoubleClick = (e: React.MouseEvent, tabId: string, currentTitle: string) => {
+    e.stopPropagation(); // 防止触发切换标签页
+    setEditingTabId(tabId);
+    setEditingTitle(currentTitle);
+  };
+
+  const handleRenameSubmit = () => {
+    if (editingTabId && editingTitle.trim()) {
+      updateTabTitle(editingTabId, editingTitle.trim(), true); // isCustom = true
+    }
+    setEditingTabId(null);
+  };
+
+  const handleRenameKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === 'Enter') {
+      handleRenameSubmit();
+    } else if (e.key === 'Escape') {
+      setEditingTabId(null);
+    }
+    e.stopPropagation(); // 防止触发其他快捷键
+  };
 
   // ✨ Phase 3: Simplified initialization (single responsibility, no race conditions)
   // 🔧 FIX: 使用 initialSession/initialProjectPath 的引用作为依赖，避免重复创建标签页
@@ -244,153 +282,169 @@ export const TabManager: React.FC<TabManagerProps> = ({
                 {tabs.map((tab, index) => {
                   const tabEngine = tab.session?.engine ?? tab.engine ?? 'claude';
                   return (
-                  <Tooltip key={tab.id}>
-                    <TooltipTrigger asChild>
-                      <motion.div
-                        layout
-                        initial={{ opacity: 0 }}
-                        animate={{ opacity: 1 }}
-                        exit={{ opacity: 0 }}
-                        transition={{ duration: 0.15 }}
-                        className={cn(
-                          "group relative flex items-center gap-2 px-3 py-1.5 rounded-lg min-w-[100px] max-w-[200px] flex-shrink-0 cursor-pointer",
-                          "transition-colors",
-                          tab.isActive
-                            ? "bg-muted border border-border text-foreground"
-                            : "bg-transparent border border-transparent text-muted-foreground hover:text-foreground hover:bg-muted/50",
-                          draggedTab === tab.id && "ring-2 ring-primary",
-                          dragOverIndex === index && draggedTab !== tab.id && "border-primary"
-                        )}
-                        onClick={() => switchToTab(tab.id)}
-                        draggable
-                        onDragStart={() => handleTabDragStart(tab.id)}
-                        onDragEnd={handleTabDragEnd}
-                        onDragOver={(e) => handleTabDragOver(e, index)}
-                        onDrop={(e) => handleTabDrop(e, index)}
-                      >
-                        {/* 引擎图标 + 状态指示 */}
-                        <div className="flex-shrink-0 flex items-center gap-1">
-                          {/* 引擎图标 */}
-                          {tabEngine === 'codex' ? (
-                            <Bot className={cn(
-                              "h-3.5 w-3.5",
-                              tab.isActive ? "text-green-500" : "text-muted-foreground"
-                            )} />
-                          ) : tabEngine === 'gemini' ? (
-                            <Sparkles className={cn(
-                              "h-3.5 w-3.5",
-                              tab.isActive ? "text-blue-500" : "text-muted-foreground"
-                            )} />
-                          ) : (
-                            <Zap className={cn(
-                              "h-3.5 w-3.5",
-                              tab.isActive ? "text-amber-500" : "text-muted-foreground"
-                            )} />
-                          )}
-                          {/* 状态指示器 */}
-                          {tab.state === 'streaming' ? (
-                            <Loader2 className="h-3 w-3 text-success animate-spin" />
-                          ) : tab.hasUnsavedChanges ? (
-                            <div className="h-1.5 w-1.5 bg-warning rounded-full" />
-                          ) : null}
-                        </div>
-
-                        {/* 标签页标题 */}
-                        <span className={cn(
-                          "flex-1 truncate text-sm",
-                          tab.isActive && "font-medium"
-                        )}>
-                          {tab.title}
-                        </span>
-
-                        {/* 弹出窗口按钮 - 仅在 hover 时显示 */}
-                        <Tooltip>
-                          <TooltipTrigger asChild>
-                            <button
-                              className={cn(
-                                "flex-shrink-0 h-5 w-5 rounded flex items-center justify-center",
-                                "opacity-0 group-hover:opacity-100 transition-opacity",
-                                "hover:bg-muted-foreground/20"
-                              )}
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                handleDetachTab(tab.id);
-                              }}
-                            >
-                              <ExternalLink className="h-3 w-3" />
-                            </button>
-                          </TooltipTrigger>
-                          <TooltipContent side="bottom">
-                            <span className="text-xs">{t('tabs.openInNewWindow')}</span>
-                          </TooltipContent>
-                        </Tooltip>
-
-                        {/* 关闭按钮 - 仅在 hover 时显示 */}
-                        <button
+                    <Tooltip key={tab.id}>
+                      <TooltipTrigger asChild>
+                        <motion.div
+                          layout
+                          initial={{ opacity: 0 }}
+                          animate={{ opacity: 1 }}
+                          exit={{ opacity: 0 }}
+                          transition={{ duration: 0.15 }}
                           className={cn(
-                            "flex-shrink-0 h-5 w-5 rounded flex items-center justify-center",
-                            "opacity-0 group-hover:opacity-100 transition-opacity",
-                            "hover:bg-muted-foreground/20"
+                            "group relative flex items-center gap-2 px-3 py-1.5 rounded-lg min-w-[100px] max-w-[200px] flex-shrink-0 cursor-pointer",
+                            "transition-colors",
+                            tab.isActive
+                              ? "bg-muted border border-border text-foreground"
+                              : "bg-transparent border border-transparent text-muted-foreground hover:text-foreground hover:bg-muted/50",
+                            draggedTab === tab.id && "ring-2 ring-primary",
+                            dragOverIndex === index && draggedTab !== tab.id && "border-primary"
                           )}
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            handleCloseTab(tab.id);
-                          }}
+                          onClick={() => switchToTab(tab.id)}
+                          draggable
+                          onDragStart={() => handleTabDragStart(tab.id)}
+                          onDragEnd={handleTabDragEnd}
+                          onDragOver={(e) => handleTabDragOver(e, index)}
+                          onDrop={(e) => handleTabDrop(e, index)}
                         >
-                          <X className="h-3 w-3" />
-                        </button>
-                      </motion.div>
-                    </TooltipTrigger>
-                    <TooltipContent side="bottom" className="max-w-sm">
-                      <div className="space-y-1.5 text-xs">
-                        <div className="font-medium flex items-center gap-2">
-                          {tab.title}
-                          {tab.state === 'streaming' && (
-                            <span className="text-[10px] px-1.5 py-0.5 rounded bg-success/20 text-success">
-                              运行中
+                          {/* 引擎图标 + 状态指示 */}
+                          <div className="flex-shrink-0 flex items-center gap-1">
+                            {/* 引擎图标 */}
+                            {tabEngine === 'codex' ? (
+                              <Bot className={cn(
+                                "h-3.5 w-3.5",
+                                tab.isActive ? "text-green-500" : "text-muted-foreground"
+                              )} />
+                            ) : tabEngine === 'gemini' ? (
+                              <Sparkles className={cn(
+                                "h-3.5 w-3.5",
+                                tab.isActive ? "text-blue-500" : "text-muted-foreground"
+                              )} />
+                            ) : (
+                              <Zap className={cn(
+                                "h-3.5 w-3.5",
+                                tab.isActive ? "text-amber-500" : "text-muted-foreground"
+                              )} />
+                            )}
+                            {/* 状态指示器 */}
+                            {tab.state === 'streaming' ? (
+                              <Loader2 className="h-3 w-3 text-success animate-spin" />
+                            ) : tab.hasUnsavedChanges ? (
+                              <div className="h-1.5 w-1.5 bg-warning rounded-full" />
+                            ) : null}
+                          </div>
+
+                          {/* 标签页标题 - 支持双击重命名 */}
+                          {editingTabId === tab.id ? (
+                            <input
+                              ref={editInputRef}
+                              type="text"
+                              value={editingTitle}
+                              onChange={(e) => setEditingTitle(e.target.value)}
+                              onBlur={handleRenameSubmit}
+                              onKeyDown={handleRenameKeyDown}
+                              onClick={(e) => e.stopPropagation()}
+                              className="flex-1 min-w-0 bg-transparent border-none outline-none text-sm p-0 m-0 h-auto focus:ring-0"
+                            />
+                          ) : (
+                            <span
+                              className={cn(
+                                "flex-1 truncate text-sm",
+                                tab.isActive && "font-medium"
+                              )}
+                              onDoubleClick={(e) => handleTabDoubleClick(e, tab.id, tab.title)}
+                            >
+                              {tab.title}
                             </span>
                           )}
-                        </div>
-                        {/* 引擎类型 */}
-                        <div className="flex items-center gap-1.5 text-muted-foreground">
-                          {tabEngine === 'codex' ? (
+
+                          {/* 弹出窗口按钮 - 仅在 hover 时显示 */}
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <button
+                                className={cn(
+                                  "flex-shrink-0 h-5 w-5 rounded flex items-center justify-center",
+                                  "opacity-0 group-hover:opacity-100 transition-opacity",
+                                  "hover:bg-muted-foreground/20"
+                                )}
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleDetachTab(tab.id);
+                                }}
+                              >
+                                <ExternalLink className="h-3 w-3" />
+                              </button>
+                            </TooltipTrigger>
+                            <TooltipContent side="bottom">
+                              <span className="text-xs">{t('tabs.openInNewWindow')}</span>
+                            </TooltipContent>
+                          </Tooltip>
+
+                          {/* 关闭按钮 - 仅在 hover 时显示 */}
+                          <button
+                            className={cn(
+                              "flex-shrink-0 h-5 w-5 rounded flex items-center justify-center",
+                              "opacity-0 group-hover:opacity-100 transition-opacity",
+                              "hover:bg-muted-foreground/20"
+                            )}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleCloseTab(tab.id);
+                            }}
+                          >
+                            <X className="h-3 w-3" />
+                          </button>
+                        </motion.div>
+                      </TooltipTrigger>
+                      <TooltipContent side="bottom" className="max-w-sm">
+                        <div className="space-y-1.5 text-xs">
+                          <div className="font-medium flex items-center gap-2">
+                            {tab.title}
+                            {tab.state === 'streaming' && (
+                              <span className="text-[10px] px-1.5 py-0.5 rounded bg-success/20 text-success">
+                                运行中
+                              </span>
+                            )}
+                          </div>
+                          {/* 引擎类型 */}
+                          <div className="flex items-center gap-1.5 text-muted-foreground">
+                            {tabEngine === 'codex' ? (
+                              <>
+                                <Bot className="h-3 w-3 text-green-500" />
+                                <span>Codex</span>
+                              </>
+                            ) : tabEngine === 'gemini' ? (
+                              <>
+                                <Sparkles className="h-3 w-3 text-blue-500" />
+                                <span>Gemini</span>
+                              </>
+                            ) : (
+                              <>
+                                <Zap className="h-3 w-3 text-amber-500" />
+                                <span>Claude</span>
+                              </>
+                            )}
+                          </div>
+                          {tab.session && (
                             <>
-                              <Bot className="h-3 w-3 text-green-500" />
-                              <span>Codex</span>
-                            </>
-                          ) : tabEngine === 'gemini' ? (
-                            <>
-                              <Sparkles className="h-3 w-3 text-blue-500" />
-                              <span>Gemini</span>
-                            </>
-                          ) : (
-                            <>
-                              <Zap className="h-3 w-3 text-amber-500" />
-                              <span>Claude</span>
+                              <div className="text-muted-foreground">
+                                {t('tabs.sessionId')} {tab.session.id.slice(0, 8)}...
+                              </div>
+                              <div className="text-muted-foreground truncate">
+                                {t('tabs.project')} {tab.projectPath || tab.session.project_path}
+                              </div>
+                              <div className="text-muted-foreground">
+                                {t('tabs.createdAt')} {new Date(tab.session.created_at * 1000).toLocaleString('zh-CN')}
+                              </div>
                             </>
                           )}
-                        </div>
-                        {tab.session && (
-                          <>
-                            <div className="text-muted-foreground">
-                              {t('tabs.sessionId')} {tab.session.id.slice(0, 8)}...
-                            </div>
+                          {!tab.session && tab.projectPath && (
                             <div className="text-muted-foreground truncate">
-                              {t('tabs.project')} {tab.projectPath || tab.session.project_path}
+                              {t('tabs.project')} {tab.projectPath}
                             </div>
-                            <div className="text-muted-foreground">
-                              {t('tabs.createdAt')} {new Date(tab.session.created_at * 1000).toLocaleString('zh-CN')}
-                            </div>
-                          </>
-                        )}
-                        {!tab.session && tab.projectPath && (
-                          <div className="text-muted-foreground truncate">
-                            {t('tabs.project')} {tab.projectPath}
-                          </div>
-                        )}
-                      </div>
-                    </TooltipContent>
-                  </Tooltip>
+                          )}
+                        </div>
+                      </TooltipContent>
+                    </Tooltip>
                   );
                 })}
               </AnimatePresence>
@@ -485,7 +539,7 @@ export const TabManager: React.FC<TabManagerProps> = ({
                 <motion.div
                   initial={{ y: -20 }}
                   animate={{ y: 0 }}
-                  transition={{ 
+                  transition={{
                     type: "spring",
                     stiffness: 200,
                     damping: 20,

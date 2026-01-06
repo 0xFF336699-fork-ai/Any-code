@@ -23,8 +23,8 @@ const TabSessionWrapperComponent: React.FC<TabSessionWrapperProps> = ({
   onStreamingChange,
   isActive,
 }) => {
-  // ✅ FIXED: Removed unused 'tab' variable to fix TS6133
-  const { updateStreaming, setCleanup, updateTitle, updateEngine, updateSession } = useTabSession(tabId);
+  // ✅ FIXED: Removed unused 'tab' variable to fix TS6133 -> Re-added for isCustomTitle check
+  const { tab, updateStreaming, setCleanup, updateTitle, updateEngine, updateSession } = useTabSession(tabId);
   const sessionRef = useRef<{ hasChanges: boolean; sessionId: string | null }>({
     hasChanges: false,
     sessionId: null,
@@ -63,13 +63,18 @@ const TabSessionWrapperComponent: React.FC<TabSessionWrapperProps> = ({
 
   // 🔧 NEW: Handle project path change and update tab title
   const handleProjectPathChange = useCallback((newPath: string) => {
+    // 🔧 FIX: 如果用户自定义了标题，不要自动覆盖
+    if (tab?.isCustomTitle) {
+      return;
+    }
+
     if (newPath && newPath !== '__NEW_PROJECT__') {
       const projectName = extractProjectName(newPath);
       if (projectName) {
         updateTitle(projectName);
       }
     }
-  }, [extractProjectName, updateTitle]);
+  }, [extractProjectName, updateTitle, tab?.isCustomTitle]);
 
   // 🆕 Handle engine change - 更新标签页显示的引擎类型
   const handleEngineChange = useCallback((engine: 'claude' | 'codex' | 'gemini') => {
@@ -108,7 +113,7 @@ const TabSessionWrapperComponent: React.FC<TabSessionWrapperProps> = ({
   return (
     <div
       className="h-full w-full"
-      // 🔧 REMOVED: display control CSS - now using conditional rendering
+    // 🔧 REMOVED: display control CSS - now using conditional rendering
     >
       <ClaudeCodeSession
         session={session}

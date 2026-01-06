@@ -13,20 +13,21 @@ export interface Tab {
   id: string;
   title: string;
   type: 'session' | 'new';
-  
+
   // Session data
   projectPath?: string;
   session?: Session;
   engine?: 'claude' | 'codex' | 'gemini';
-  
+
   // State management (simplified)
   state: 'idle' | 'streaming' | 'error';
   errorMessage?: string; // Flattened from error object
   hasUnsavedChanges: boolean;
-  
+
   // Metadata
   createdAt: number;
   lastActiveAt: number;
+  isCustomTitle?: boolean; // 🔧 NEW: 标记是否为用户自定义标题
 }
 
 // Backward compatibility: Keep old interfaces as type aliases
@@ -48,7 +49,7 @@ interface TabContextValue {
   closeTab: (tabId: string, force?: boolean) => Promise<{ needsConfirmation?: boolean; tabId?: string } | void>;
   updateTabState: (tabId: string, state: Tab['state'], errorMessage?: string) => void;
   updateTabChanges: (tabId: string, hasChanges: boolean) => void;
-  updateTabTitle: (tabId: string, title: string) => void;
+  updateTabTitle: (tabId: string, title: string, isCustom?: boolean) => void;
   updateTabEngine: (tabId: string, engine: 'claude' | 'codex' | 'gemini') => void;
   /** 🔧 FIX: 更新标签页的 session 信息（用于新建会话获取到 sessionId 后持久化） */
   updateTabSession: (tabId: string, sessionInfo: { sessionId: string; projectId: string; projectPath: string; engine?: 'claude' | 'codex' | 'gemini' }) => void;
@@ -90,22 +91,48 @@ export const TabProvider: React.FC<TabProviderProps> = ({ children }) => {
   const [tabs, setTabs] = useState<Tab[]>([]);
   const [activeTabId, setActiveTabId] = useState<string | null>(null);
   const nextTabId = useRef(1);
-  
+
   // Cleanup callbacks stored separately (not in state)
   const cleanupCallbacksRef = useRef<Map<string, () => Promise<void> | void>>(new Map());
 
   const STORAGE_KEY = 'claude-workbench-tabs-state';
+  const SESSION_TITLES_KEY = 'claude-workbench-session-titles'; // 🔧 NEW: Persistent storage for custom titles
+
+  // 🔧 NEW: Load saved session titles into a ref for quick access
+  const savedSessionTitlesRef = useRef<Record<string, string>>({});
+
+  // Initialize saved titles from localStorage
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem(SESSION_TITLES_KEY);
+      if (saved) {
+        savedSessionTitlesRef.current = JSON.parse(saved);
+      }
+    } catch (e) {
+      console.error('[useTabs] Failed to load saved session titles', e);
+    }
+  }, []);
+
+  // 🔧 NEW: Helper to save session title
+  const saveSessionTitle = useCallback((sessionId: string, title: string) => {
+    try {
+      savedSessionTitlesRef.current[sessionId] = title;
+      localStorage.setItem(SESSION_TITLES_KEY, JSON.stringify(savedSessionTitlesRef.current));
+    } catch (e) {
+      console.error('[useTabs] Failed to save session title', e);
+    }
+  }, []);
 
   // ✨ REFACTORED: Load persisted state on mount (simplified)
   useEffect(() => {
     try {
       const persistedState = localStorage.getItem(STORAGE_KEY);
       if (!persistedState) return;
-      
+
       const { tabs: savedTabs, activeTabId: savedActiveTabId } = JSON.parse(persistedState);
-      
+
       if (!Array.isArray(savedTabs)) return;
-      
+
       // Validate and filter tabs
       const validTabs = savedTabs.filter((tab: any) => {
         if (!tab.id || !tab.title) {
@@ -118,13 +145,14 @@ export const TabProvider: React.FC<TabProviderProps> = ({ children }) => {
         type: tab.type || (tab.session ? 'session' : 'new'),
         state: tab.state || 'idle',
         hasUnsavedChanges: tab.hasUnsavedChanges ?? tab.hasChanges ?? false,
+        isCustomTitle: tab.isCustomTitle ?? false, // Restore isCustomTitle
       }));
-      
+
       // Validate activeTabId
       const validActiveTabId = validTabs.find(t => t.id === savedActiveTabId)
         ? savedActiveTabId
         : (validTabs[0]?.id || null);
-      
+
       setTabs(validTabs);
       setActiveTabId(validActiveTabId);
     } catch (error) {
@@ -178,6 +206,11 @@ export const TabProvider: React.FC<TabProviderProps> = ({ children }) => {
     };
 
     if (session) {
+      // 🔧 NEW: Check for saved custom title first
+      if (savedSessionTitlesRef.current[session.id]) {
+        return savedSessionTitlesRef.current[session.id];
+      }
+
       const projectName = extractProjectName(session.project_path);
       return projectName || '未命名会话';
     }
@@ -193,9 +226,14 @@ export const TabProvider: React.FC<TabProviderProps> = ({ children }) => {
   // ✨ REFACTORED: Create new tab (simplified)
   const createNewTab = useCallback((session?: Session, projectPath?: string, activate: boolean = true): string => {
     const newTabId = generateTabId();
+
+    // 🔧 NEW: Determine if title is custom based on whether it came from saved storage
+    const title = generateTabTitle(session, projectPath);
+    const isCustomTitle = session && !!savedSessionTitlesRef.current[session.id];
+
     const newTab: Tab = {
       id: newTabId,
-      title: generateTabTitle(session, projectPath),
+      title,
       type: session ? 'session' : 'new',
       projectPath: projectPath || session?.project_path,
       session,
@@ -204,10 +242,11 @@ export const TabProvider: React.FC<TabProviderProps> = ({ children }) => {
       hasUnsavedChanges: false,
       createdAt: Date.now(),
       lastActiveAt: Date.now(),
+      isCustomTitle, // 🔧 UPDATED: Set custom title flag if loaded from storage
     };
 
     setTabs(prev => [...prev, newTab]);
-    
+
     if (activate) {
       setActiveTabId(newTabId);
     }
@@ -303,13 +342,21 @@ export const TabProvider: React.FC<TabProviderProps> = ({ children }) => {
   }, []);
 
   // Update tab title
-  const updateTabTitle = useCallback((tabId: string, title: string) => {
-    setTabs(prev =>
-      prev.map(tab =>
-        tab.id === tabId ? { ...tab, title } : tab
+  const updateTabTitle = useCallback((tabId: string, title: string, isCustom: boolean = false) => {
+    setTabs(prev => {
+      // 🔧 NEW: Persist custom title if applicable
+      if (isCustom) {
+        const tab = prev.find(t => t.id === tabId);
+        if (tab && tab.session?.id) {
+          saveSessionTitle(tab.session.id, title);
+        }
+      }
+
+      return prev.map(tab =>
+        tab.id === tabId ? { ...tab, title, isCustomTitle: isCustom ? true : tab.isCustomTitle } : tab
       )
-    );
-  }, []);
+    });
+  }, [saveSessionTitle]);
 
   // 🆕 Update tab engine - 更新标签页的执行引擎
   const updateTabEngine = useCallback((tabId: string, engine: 'claude' | 'codex' | 'gemini') => {
@@ -335,6 +382,12 @@ export const TabProvider: React.FC<TabProviderProps> = ({ children }) => {
         // 如果已经有 session 且 id 相同，不需要更新
         if (tab.session?.id === sessionInfo.sessionId) return tab;
 
+        // 🔧 NEW: Check if user already set a custom title for this previously new tab
+        // If so, save it to the persistent storage key with the new sessionId
+        if (tab.isCustomTitle && tab.title) {
+          saveSessionTitle(sessionInfo.sessionId, tab.title);
+        }
+
         // 构建完整的 Session 对象
         const newSession: Session = {
           id: sessionInfo.sessionId,
@@ -356,7 +409,7 @@ export const TabProvider: React.FC<TabProviderProps> = ({ children }) => {
         };
       })
     );
-  }, []);
+  }, [saveSessionTitle]);
 
   // Get tab by ID
   const getTabById = useCallback((tabId: string): TabSession | undefined => {
