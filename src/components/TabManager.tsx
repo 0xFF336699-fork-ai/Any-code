@@ -28,6 +28,7 @@ import { cn } from '@/lib/utils';
 import { TabSessionWrapper } from './TabSessionWrapper';
 import { useTabs } from '@/hooks/useTabs';
 import { useSessionSync } from '@/hooks/useSessionSync'; // 🔧 NEW: 会话状态同步
+import { addNamedSession } from '@/lib/namedSessionDb';
 import { selectProjectPath } from '@/lib/sessionHelpers';
 import type { Session } from '@/lib/api';
 
@@ -178,10 +179,45 @@ export const TabManager: React.FC<TabManagerProps> = ({
     setEditingTitle(currentTitle);
   };
 
-  const handleRenameSubmit = () => {
-    if (editingTabId && editingTitle.trim()) {
-      updateTabTitle(editingTabId, editingTitle.trim(), true); // isCustom = true
+  const handleRenameSubmit = async () => {
+    if (!editingTabId || !editingTitle.trim()) {
+      setEditingTabId(null);
+      return;
     }
+
+    const trimmedTitle = editingTitle.trim();
+    console.log('[TabManager] 重命名 tab:', JSON.stringify({ tabId: editingTabId, title: trimmedTitle }));
+
+    try {
+      // 更新 tab 标题
+      updateTabTitle(editingTabId, trimmedTitle, true); // isCustom = true
+
+      // 保存到 indexedDb 作为命名会话
+      const tab = tabs.find(t => t.id === editingTabId);
+      if (tab && tab.session) {
+        console.log('[TabManager] 保存命名会话到 indexedDb');
+
+        await addNamedSession({
+          id: tab.session.id,
+          name: trimmedTitle,
+          projectPath: tab.session.project_path,
+          projectId: tab.session.project_id,
+          engine: (tab.session.engine || 'claude') as 'claude' | 'codex' | 'gemini',
+          createdAt: tab.session.created_at,
+          namedAt: Date.now(),
+          firstMessage: tab.session.first_message,
+          lastMessageTimestamp: tab.session.last_message_timestamp,
+        });
+
+        console.log('[TabManager] 命名会话保存成功');
+      } else {
+        console.log('[TabManager] tab 没有关联的 session，跳过保存到 indexedDb');
+      }
+    } catch (error) {
+      console.error('[TabManager] 保存命名会话失败:', error);
+      // 不影响 tab 重命名功能，只是 indexedDb 保存失败
+    }
+
     setEditingTabId(null);
   };
 

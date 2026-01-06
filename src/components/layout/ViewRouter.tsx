@@ -3,9 +3,10 @@ import { Plus } from "lucide-react";
 import { listen, type UnlistenFn } from '@tauri-apps/api/event';
 import { useTranslation } from 'react-i18next';
 import { motion, AnimatePresence, Transition } from "framer-motion"; // ✨ Added for transitions
-import { api, type Project } from "@/lib/api";
+import { api, type Project, type Session } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import { ProjectList } from "@/components/ProjectList";
+import { NamedSessionList } from "@/components/NamedSessionList";
 import { SessionList } from "@/components/SessionList";
 import { RunningClaudeSessions } from "@/components/RunningClaudeSessions";
 import { MarkdownEditor } from "@/components/MarkdownEditor";
@@ -410,6 +411,38 @@ export const ViewRouter: React.FC = () => {
                   )}
                 </>
               )}
+            </div>
+          </div>
+        );
+
+      case "named-sessions":
+        return (
+          <div className="flex-1 overflow-y-auto">
+            <div className="container mx-auto p-6">
+              <NamedSessionList
+                onBack={goBack}
+                onSessionClick={async (namedSession) => {
+                  console.log('[ViewRouter] 打开命名会话:', JSON.stringify(namedSession));
+
+                  try {
+                    const session: Session = {
+                      id: namedSession.id,
+                      project_id: namedSession.projectId,
+                      project_path: namedSession.projectPath,
+                      created_at: namedSession.createdAt,
+                      engine: namedSession.engine,
+                      first_message: namedSession.firstMessage,
+                      last_message_timestamp: namedSession.lastMessageTimestamp,
+                    };
+
+                    console.log('[ViewRouter] 构建的 Session 对象:', JSON.stringify(session));
+                    navigateTo('claude-tab-manager', { initialSession: session });
+                  } catch (error) {
+                    console.error('[ViewRouter] 打开命名会话失败:', error);
+                    alert('打开会话失败: ' + error);
+                  }
+                }}
+              />
             </div>
           </div>
         );

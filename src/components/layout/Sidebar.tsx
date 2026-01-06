@@ -11,7 +11,8 @@ import {
   ChevronLeft,
   ChevronRight,
   HelpCircle,
-  Sparkles
+  Sparkles,
+  BookmarkCheck
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { View } from '@/types/navigation';
@@ -73,6 +74,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
 
   const mainNavItems: NavItem[] = [
     { view: 'projects', icon: FolderOpen, label: t('common.ccProjectsTitle') },
+    { view: 'named-sessions', icon: BookmarkCheck, label: t('sidebar.namedSessions') },
     { view: 'claude-tab-manager', icon: Terminal, label: t('sidebar.sessionManagement') },
     { view: 'editor', icon: FileText, label: t('sidebar.claudePrompts') },
     { view: 'codex-editor', icon: FileCode, label: t('sidebar.codexPrompts') },

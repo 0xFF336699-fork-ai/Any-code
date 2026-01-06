@@ -1,5 +1,6 @@
 export type View =
   | "projects"
+  | "named-sessions"
   | "editor"
   | "codex-editor"
   | "gemini-editor"
